@@ -1,0 +1,15 @@
+.env
+*.log
+/backend/bin/
+/frontend/node_modules/
+/frontend/dist/
+/ml/.venv/
+/ml/data/raw/*
+/ml/data/processed/*
+!/ml/data/**/.gitkeep
+/ml/models/artifacts/*
+!/ml/models/artifacts/.gitkeep
+__pycache__/
+.ipynb_checkpoints/
+bench/results/*
+!bench/results/.gitkeep

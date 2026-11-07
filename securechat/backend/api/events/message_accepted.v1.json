@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MessageAccepted v1 (topic chat.messages, key = conversationId)",
+  "type": "object",
+  "required": ["eventId", "eventType", "schemaVersion", "occurredAt", "payload"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid", "description": "dedupe key" },
+    "eventType": { "const": "MessageAccepted" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "payload": {
+      "type": "object",
+      "required": ["messageId", "clientMessageId", "conversationId", "seq", "senderId", "recipients", "ciphertext"],
+      "properties": {
+        "messageId": { "type": "string", "format": "uuid" },
+        "clientMessageId": { "type": "string" },
+        "conversationId": { "type": "string", "format": "uuid" },
+        "seq": { "type": "integer" },
+        "senderId": { "type": "string", "format": "uuid" },
+        "recipients": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+        "ciphertext": { "type": "string", "contentEncoding": "base64" },
+        "protocolMeta": { "type": "object" },
+        "acceptedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "x-rules": [
+    "NO plaintext ever.",
+    "Additive changes only; bump schemaVersion when adding fields."
+  ]
+}

@@ -1,0 +1,196 @@
+openapi: 3.0.3
+info:
+  title: SecureChat API
+  version: 0.1.0
+  description: |
+    REST contract (doc §7.1). The server only handles ciphertext + minimal metadata.
+    senderId is always derived from the JWT, never accepted from the client.
+    WebSocket protocol: see docs/api/websocket-protocol.md.
+servers:
+  - url: http://localhost:8081
+  - url: http://localhost:8082
+security:
+  - bearer: []
+
+paths:
+  /v1/auth/dev-login:
+    post:
+      summary: DEV ONLY – issue a token for a username (AUTH_DEV_LOGIN_ENABLED)
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [username], properties: { username: { type: string } } }
+      responses:
+        "200":
+          description: token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: string, format: uuid }
+                  accessToken: { type: string }
+                  expiresAt: { type: string, format: date-time }
+
+  /v1/conversations:
+    get:
+      summary: List my conversations
+      responses:
+        "200": { description: ok, content: { application/json: { schema: { type: object, properties: { conversations: { type: array, items: { $ref: "#/components/schemas/Conversation" } } } } } } }
+    post:
+      summary: Get or create the 1:1 conversation with a peer
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [peerUserId], properties: { peerUserId: { type: string, format: uuid } } }
+      responses:
+        "200": { description: ok, content: { application/json: { schema: { $ref: "#/components/schemas/Conversation" } } } }
+
+  /v1/conversations/{id}/messages:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: History, keyset pagination by seq, newest first (RS8)
+      parameters:
+        - { name: before_seq, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, default: 50, maximum: 200 } }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages: { type: array, items: { $ref: "#/components/schemas/Message" } }
+                  nextBeforeSeq: { type: integer, nullable: true }
+        "403": { description: not a member }
+    post:
+      summary: Send (REST fallback for WS "send"). Idempotent on clientMessageId.
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SendRequest" }
+      responses:
+        "201": { description: accepted (new), content: { application/json: { schema: { $ref: "#/components/schemas/Accepted" } } } }
+        "200": { description: accepted (duplicate retry), content: { application/json: { schema: { $ref: "#/components/schemas/Accepted" } } } }
+        "403": { description: not a member }
+
+  /v1/messages/{id}/receipts:
+    post:
+      summary: Delivered / read ACK (RS6). Idempotent.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [state], properties: { state: { type: string, enum: [delivered, read] } } }
+      responses:
+        "204": { description: recorded }
+
+  /v1/sync:
+    post:
+      summary: Cursor-based offline sync (RS3, RS4). PostgreSQL only – works when Kafka is down.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cursors:
+                  type: object
+                  description: conversationId → last seq the client has
+                  additionalProperties: { type: integer, format: int64 }
+                limit: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        conversationId: { type: string, format: uuid }
+                        messages: { type: array, items: { $ref: "#/components/schemas/Message" } }
+                        nextCursor: { type: integer }
+                        hasMore: { type: boolean }
+
+  /v1/keys/bundle:
+    put:
+      summary: Upload my PUBLIC Signal pre-key bundle (SC2)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, registrationId, identityKey, signedPreKeyId, signedPreKey, signedPreKeySignature]
+              properties:
+                deviceId: { type: integer }
+                registrationId: { type: integer }
+                identityKey: { type: string, format: byte }
+                signedPreKeyId: { type: integer }
+                signedPreKey: { type: string, format: byte }
+                signedPreKeySignature: { type: string, format: byte }
+                oneTimePreKeys:
+                  type: array
+                  items: { type: object, properties: { keyId: { type: integer }, publicKey: { type: string, format: byte } } }
+      responses:
+        "204": { description: stored }
+
+  /v1/users/{id}/devices/{deviceId}/bundle:
+    get:
+      summary: Claim a peer's bundle (consumes one one-time pre-key)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: deviceId, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: bundle }
+        "404": { description: no bundle }
+
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  schemas:
+    Conversation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string, enum: [direct, group] }
+        lastSeq: { type: integer }
+        members: { type: array, items: { type: string, format: uuid } }
+        createdAt: { type: string, format: date-time }
+    SendRequest:
+      type: object
+      required: [clientMessageId, ciphertext]
+      properties:
+        clientMessageId: { type: string, maxLength: 64, description: "UUID generated by client; reuse on retry" }
+        ciphertext: { type: string, format: byte }
+        protocolMeta: { type: object, description: "Signal message type, deviceId, registrationId…" }
+        clientCreatedAt: { type: string, format: date-time, description: reference only }
+    Accepted:
+      type: object
+      properties:
+        messageId: { type: string, format: uuid }
+        clientMessageId: { type: string }
+        conversationId: { type: string, format: uuid }
+        seq: { type: integer }
+        state: { type: string, enum: [accepted] }
+        duplicate: { type: boolean }
+    Message:
+      type: object
+      properties:
+        messageId: { type: string, format: uuid }
+        clientMessageId: { type: string }
+        conversationId: { type: string, format: uuid }
+        seq: { type: integer }
+        senderId: { type: string, format: uuid }
+        ciphertext: { type: string, format: byte }
+        protocolMeta: { type: object }
+        clientCreatedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }

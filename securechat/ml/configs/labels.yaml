@@ -1,0 +1,26 @@
+# Label contract (AI3, AI15). Shared by ml/ and frontend/src/ai/contract.ts.
+# TODO(FE/AI 2): finalize definitions with examples + edge cases in week 1.
+version: 0
+
+message_model:
+  labels:
+    - id: benign
+      definition: "Normal conversation."
+    - id: phishing
+      definition: "Tries to obtain credentials, OTP, payment or personal data by impersonation."
+    - id: scam
+      definition: "Fraudulent offer / request for money (investment, prize, job, romance)."
+    - id: spam
+      definition: "Unsolicited bulk / promotional content."
+  threshold: null      # chosen on validation set (AI25), NOT on test set
+  languages: [vi, en]  # document real coverage in model_card.md (AI12)
+
+url_model:
+  labels:
+    - id: benign
+    - id: malicious   # phishing / malware / defacement – refine if dataset allows
+  threshold: null
+
+runtime:
+  target: onnxruntime-web
+  timeout_ms: null     # on timeout → status "unavailable", never "safe"
