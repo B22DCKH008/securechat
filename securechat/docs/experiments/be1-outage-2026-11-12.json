@@ -1,0 +1,14 @@
+{
+    "at":  "2026-11-12T00:11:30.9329725Z",
+    "project":  "securechat-be1",
+    "passed":  true,
+    "accepted":  5,
+    "receiptEvents":  1,
+    "backlogDuringOutage":  6,
+    "backlogAfterRecovery":  0,
+    "apiRestartedDuringOutage":  true,
+    "databaseSyncDuringOutage":  true,
+    "uniqueHistoryMessages":  5,
+    "recoverySecondsIncludingBrokerStartCommand":  23.4467373,
+    "limitation":  "Opaque fixture bytes; no claim of Signal encryption or live client deduplication."
+}

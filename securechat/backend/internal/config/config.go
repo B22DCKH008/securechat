@@ -55,7 +55,8 @@ type Config struct {
 	WSPongTimeout      time.Duration
 	WSSendBuffer       int
 	WSMaxConnsPerUser  int
-	WSMaxMessageBytes  int64
+	WSMaxMessageBytes  int64 // decoded ciphertext limit for REST and WS (legacy env name)
+	WSMaxFrameBytes    int64 // complete inbound WS JSON message, including base64 and metadata
 	RateLimitPerSecond int
 	PresenceTTL        time.Duration
 }
@@ -91,7 +92,7 @@ func Load() (Config, error) {
 		OutboxRetention:     envDuration("OUTBOX_RETENTION", 24*time.Hour),
 
 		JWTSecret:          env("JWT_SECRET", ""),
-		JWTTTL:             envDuration("JWT_TTL", 24*time.Hour),
+		JWTTTL:             envDuration("JWT_TTL", 15*time.Minute),
 		DevLoginEnabled:    envBool("AUTH_DEV_LOGIN_ENABLED", false),
 		WSAllowedOrigins:   strings.Split(env("WS_ALLOWED_ORIGINS", "localhost:*"), ","),
 		WSPingInterval:     envDuration("WS_PING_INTERVAL", 20*time.Second),
@@ -99,6 +100,7 @@ func Load() (Config, error) {
 		WSSendBuffer:       envInt("WS_SEND_BUFFER", 256),
 		WSMaxConnsPerUser:  envInt("WS_MAX_CONNS_PER_USER", 5),
 		WSMaxMessageBytes:  int64(envInt("WS_MAX_MESSAGE_BYTES", 64*1024)),
+		WSMaxFrameBytes:    int64(envInt("WS_MAX_FRAME_BYTES", 128*1024)),
 		RateLimitPerSecond: envInt("RATE_LIMIT_PER_SECOND", 20),
 		PresenceTTL:        envDuration("PRESENCE_TTL", 60*time.Second),
 	}
@@ -111,6 +113,23 @@ func Load() (Config, error) {
 func (c Config) validate() error {
 	if len(c.JWTSecret) < 32 {
 		return fmt.Errorf("JWT_SECRET must be set and at least 32 bytes")
+	}
+	if strings.HasPrefix(c.JWTSecret, "change-me") {
+		return fmt.Errorf("JWT_SECRET must be changed from the example value")
+	}
+	if c.JWTTTL <= 0 || c.JWTTTL > 24*time.Hour {
+		return fmt.Errorf("JWT_TTL must be positive and at most 24h")
+	}
+	if c.PostgresMaxConns < 3 || c.RelayBatchSize < 1 || c.RelayPollInterval <= 0 || c.OutboxRetention <= 0 {
+		return fmt.Errorf("invalid database pool or relay configuration")
+	}
+	if c.WSPingInterval <= 0 || c.WSPongTimeout <= 0 || c.WSSendBuffer < 1 || c.WSMaxConnsPerUser < 1 || c.WSMaxMessageBytes < 1 || c.RateLimitPerSecond < 1 {
+		return fmt.Errorf("invalid websocket or rate limit configuration")
+	}
+	// Reserve 8 KiB for metadata (at most 4 KiB), IDs, ref and JSON framing.
+	// Divide before multiplying to avoid overflow for invalid large settings.
+	if c.WSMaxFrameBytes <= 8*1024 || c.WSMaxMessageBytes > ((c.WSMaxFrameBytes-8*1024)/4)*3 {
+		return fmt.Errorf("WS_MAX_FRAME_BYTES must fit base64 ciphertext from WS_MAX_MESSAGE_BYTES plus 8192 bytes of envelope overhead")
 	}
 	switch c.DeliveryTransport {
 	case TransportKafka, TransportRedis:

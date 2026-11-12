@@ -13,6 +13,61 @@ security:
   - bearer: []
 
 paths:
+  /v1/auth/register:
+    post:
+      summary: Create a password account and initial device session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201": { description: registered, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
+        "400": { description: invalid username or password }
+        "409": { description: username already exists including a passwordless dev account }
+        "429": { description: too many attempts }
+        "503": { description: authentication unavailable }
+  /v1/auth/login:
+    post:
+      summary: Login on an existing device
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200": { description: logged in, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
+        "401": { description: invalid credentials }
+        "429": { description: too many attempts }
+        "503": { description: authentication unavailable }
+  /v1/auth/refresh:
+    post:
+      summary: Rotate one refresh token; replay revokes the entire session family
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              additionalProperties: false
+              properties:
+                refreshToken: { type: string, minLength: 43, maxLength: 43 }
+      responses:
+        "200": { description: rotated, content: { application/json: { schema: { $ref: "#/components/schemas/Tokens" } } } }
+        "401": { description: invalid or replayed refresh token }
+        "429": { description: too many attempts }
+        "503": { description: authentication unavailable }
+  /v1/auth/logout:
+    post:
+      summary: Revoke the current session family including concurrently rotated tokens
+      responses:
+        "204": { description: logged out }
+        "401": { description: no active session }
+        "503": { description: authentication unavailable }
   /v1/auth/dev-login:
     post:
       summary: DEV ONLY – issue a token for a username (AUTH_DEV_LOGIN_ENABLED)
@@ -75,6 +130,7 @@ paths:
       responses:
         "201": { description: accepted (new), content: { application/json: { schema: { $ref: "#/components/schemas/Accepted" } } } }
         "200": { description: accepted (duplicate retry), content: { application/json: { schema: { $ref: "#/components/schemas/Accepted" } } } }
+        "409": { description: clientMessageId reused with changed conversation or payload }
         "403": { description: not a member }
 
   /v1/messages/{id}/receipts:
@@ -102,6 +158,10 @@ paths:
                   type: object
                   description: conversationId → last seq the client has
                   additionalProperties: { type: integer, format: int64 }
+                receiptCursors:
+                  type: object
+                  description: conversationId to last persisted receiptSeq; independent from message cursor
+                  additionalProperties: { type: integer, format: int64, minimum: 0 }
                 limit: { type: integer, default: 50 }
       responses:
         "200":
@@ -120,6 +180,9 @@ paths:
                         messages: { type: array, items: { $ref: "#/components/schemas/Message" } }
                         nextCursor: { type: integer }
                         hasMore: { type: boolean }
+                        receipts: { type: array, items: { $ref: "#/components/schemas/Receipt" } }
+                        nextReceiptCursor: { type: integer, format: int64 }
+                        hasMoreReceipts: { type: boolean }
 
   /v1/keys/bundle:
     put:
@@ -157,6 +220,34 @@ components:
   securitySchemes:
     bearer: { type: http, scheme: bearer, bearerFormat: JWT }
   schemas:
+    Credentials:
+      type: object
+      required: [username, password]
+      additionalProperties: false
+      properties:
+        username: { type: string, pattern: "^[a-zA-Z0-9_]{3,32}$" }
+        password: { type: string, maxLength: 1024, description: "Server enforces 12 to 1024 UTF-8 bytes; byte count differs from JSON Schema character count. Hashes a domain-separated SHA-256 digest with bcrypt cost 12." }
+        deviceId: { type: integer, minimum: 1, maximum: 2147483647, default: 1 }
+    Tokens:
+      type: object
+      required: [userId, deviceId, accessToken, refreshToken, expiresAt]
+      properties:
+        userId: { type: string, format: uuid }
+        deviceId: { type: integer }
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+    Receipt:
+      type: object
+      properties:
+        receiptSeq: { type: integer, format: int64 }
+        messageId: { type: string, format: uuid }
+        conversationId: { type: string, format: uuid }
+        seq: { type: integer, format: int64 }
+        recipientId: { type: string, format: uuid }
+        senderId: { type: string, format: uuid }
+        state: { type: string, enum: [delivered, read] }
+        at: { type: string, format: date-time }
     Conversation:
       type: object
       properties:
@@ -167,11 +258,12 @@ components:
         createdAt: { type: string, format: date-time }
     SendRequest:
       type: object
+      additionalProperties: false
       required: [clientMessageId, ciphertext]
       properties:
         clientMessageId: { type: string, maxLength: 64, description: "UUID generated by client; reuse on retry" }
-        ciphertext: { type: string, format: byte }
-        protocolMeta: { type: object, description: "Signal message type, deviceId, registrationId…" }
+        ciphertext: { type: string, format: byte, description: "Base64 ciphertext; decoded bytes limited by WS_MAX_MESSAGE_BYTES (default 65536), shared by REST and WS. REST JSON body limit is 1 MiB." }
+        protocolMeta: { type: object, description: "Signal message type, deviceId, registrationId…; at most 4096 serialized bytes" }
         clientCreatedAt: { type: string, format: date-time, description: reference only }
     Accepted:
       type: object

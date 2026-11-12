@@ -14,6 +14,7 @@ var (
 	ErrNotFound       = errors.New("not found")
 	ErrNotMember      = errors.New("user is not a member of conversation") // SC5
 	ErrInvalidInput   = errors.New("invalid input")
+	ErrConflict       = errors.New("clientMessageId reused with different payload")
 	ErrRateLimited    = errors.New("rate limited")
 	ErrNoPreKeyBundle = errors.New("no pre-key bundle for user")
 )
@@ -75,6 +76,14 @@ func (c SendCommand) Validate(maxCiphertext int) error {
 		return ErrInvalidInput
 	case len(c.Ciphertext) == 0 || len(c.Ciphertext) > maxCiphertext:
 		return ErrInvalidInput
+	case len(c.ProtocolMeta) > 4096:
+		return ErrInvalidInput
+	}
+	if len(c.ProtocolMeta) > 0 {
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(c.ProtocolMeta, &object); err != nil || object == nil {
+			return ErrInvalidInput
+		}
 	}
 	return nil
 }
@@ -86,6 +95,7 @@ type SendResult struct {
 }
 
 type Receipt struct {
+	ReceiptSeq     int64         `json:"receiptSeq"`
 	MessageID      uuid.UUID     `json:"messageId"`
 	ConversationID uuid.UUID     `json:"conversationId"`
 	Seq            int64         `json:"seq"`

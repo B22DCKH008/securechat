@@ -1,0 +1,25 @@
+# Isolated BE1 verification; never uses the legacy ChatE2e volumes.
+# docker compose -p securechat-be1 -f docker-compose.yml -f compose.test.yml run --rm be1-test
+services:
+  be1-test:
+    image: golang:1.27.3
+    profiles: [test]
+    working_dir: /workspace/backend
+    environment:
+      TEST_POSTGRES_DSN: postgres://securechat:securechat@postgres:5432/securechat?sslmode=disable
+      TEST_KAFKA_BROKERS: kafka:9092
+      GOMAXPROCS: "2"
+      GOMEMLIMIT: 256MiB
+      GOFLAGS: -p=1
+      GOCACHE: /go-build-cache
+    volumes:
+      - .:/workspace:ro
+      - be1_go_modules:/go/pkg/mod
+      - be1_go_build:/go-build-cache
+    command: [go, test, -race, -count=1, -tags=integration, -timeout=180s, -v, ./...]
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+volumes:
+  be1_go_modules:
+  be1_go_build:

@@ -1,0 +1,348 @@
+
+SECURECHAT
+4-Week Engineering Plan • Real-World Chat System Design • E2EE + On-Device AI + Kafka Event Pipeline
+
+Team: 4 members | 2 Backend & Protocol | 2 Frontend & AI
+Scope: practical 1:1 encrypted chat, two client-side AI models, Kafka-based distributed routing, offline delivery and measurable experiments.
+
+1. Executive summary
+SecureChat là đồ án chat thời gian thực tập trung vào ba điểm: (1) E2EE bằng thư viện Signal Protocol phù hợp, (2) hai model AI chạy trên client để phân tích message đáng ngờ và URL độc hại, và (3) các bài toán system design thực tế như reliable delivery, offline sync, multi-instance WebSocket routing qua Kafka event pipeline (transactional outbox), reconnect và performance benchmarking.
+Backend/System và AI phải phát triển song song từ tuần 1. Backend có thể dùng mock ciphertext trong giai đoạn đầu; AI bắt đầu với dataset/baseline độc lập; frontend tích hợp Signal Protocol sớm để tránh rủi ro dồn E2EE vào tuần 3.
+Mục tiêu MVP
+1:1 chat với mã hóa/giải mã ở client; backend chỉ nhận ciphertext và metadata cần thiết.
+Go REST + WebSocket, PostgreSQL làm durable source of truth, Kafka làm durable event log cho delivery pipeline (transactional outbox), Redis hỗ trợ presence/connection registry/rate limit.
+ACK, idempotency, offline synchronization, reconnect và kiểm tra message trùng/mất.
+Kafka event pipeline: outbox → topic → consumer idempotent; kiểm chứng không mất/trùng message khi Kafka hoặc backend restart.
+Hai model: message phishing/scam/spam detection và malicious URL detection, ưu tiên chạy trên client.
+Docker Compose (gồm Kafka KRaft một broker), hai backend instances để kiểm thử cross-instance routing, benchmark và security validation.
+2. Phân công 4 thành viên
+[TABLE]
+Thành viên | Vai trò | Trách nhiệm chính | Bàn giao
+BE/Protocol 1 | Backend Core + data | PostgreSQL schema/index (gồm bảng outbox); REST APIs; auth/authz; message persistence (message + outbox trong cùng transaction); outbox relay → Kafka producer; ACK/state; idempotency; offline sync; cursor pagination; tests. | Schema/migrations (gồm outbox), API contract, outbox relay, delivery tests, database benchmark.
+BE/Protocol 2 | Realtime + Signal integration support | Go WebSocket; connection lifecycle; reconnect/heartbeat; Redis presence/registry; Kafka trong Docker Compose + topics; gateway consumer (group theo instance), retry/DLQ; consumer lag metrics; multi-instance; failure recovery; hỗ trợ tích hợp protocol/key bundle theo thư viện. | Realtime routing qua Kafka consumer, Docker Compose multi-instance + Kafka, k6 scripts, system metrics (gồm consumer lag).
+FE/AI 1 | Frontend + E2EE | React/TypeScript chat UI; Signal Protocol library integration; local key/session handling; encrypt/decrypt; ACK/read status; privacy checks. | End-to-end encrypted UI, network/security checks, client integration.
+FE/AI 2 | ML + on-device inference | Dataset; message model; URL model; baseline/evaluation; export/runtime integration; latency/resource measurements; risk-warning UX contract. | Hai model, evaluation report, inference interface, AI ON/OFF benchmark.
+[/TABLE]
+
+Quy tắc phối hợp: hai thành viên backend không đợi AI; hai thành viên FE/AI không đợi backend hoàn tất. Tuần 1 phải chốt message contract, AI contract và cách đo latency. Protocol/E2EE proof-of-concept là critical path. Event schema của Kafka cũng phải chốt trong tuần 1 vì BE/Protocol 1 (outbox, producer) và BE/Protocol 2 (consumer) làm song song.
+
+3. System design tổng thể
+Thiết kế MVP không dùng Nginx/Kubernetes. Hai Go backend instance được chạy song song để kiểm chứng routing; PostgreSQL lưu ciphertext bền vững và là source of truth; Kafka (KRaft, một broker) là durable event log cho pipeline giao message thông qua transactional outbox; Redis hỗ trợ presence, connection registry và rate limit. AI inference và private keys ở client.
+
+Hình 1. System design mức MVP có Kafka. Số trong hình khớp với các bước ở mục 3.1 (1–3 xảy ra trên client, 4–8 là đường đi của message, S là offline sync). Server chỉ thấy ciphertext và metadata tối thiểu; mũi tên cam là sự kiện đi qua Kafka.
+
+3.1. Luồng gửi message
+Người gửi nhập plaintext trên client.
+Client chạy rule-based checks cho dữ liệu nhạy cảm và hai AI model cục bộ; nếu đáng ngờ, UI hiển thị cảnh báo.
+Người dùng quyết định chỉnh sửa hoặc tiếp tục; client mã hóa bằng thư viện Signal Protocol.
+Client gửi ciphertext + metadata tối thiểu + clientMessageId qua WebSocket/REST.
+Backend xác thực quyền, xử lý idempotency; trong một transaction PostgreSQL ghi ciphertext (kèm seq theo conversation) và một dòng outbox. Chỉ sau khi commit mới trả server-accepted ACK.
+Outbox relay đọc bảng outbox và publish event MessageAccepted lên Kafka (topic chat.messages, key = conversationId), rồi đánh dấu đã gửi. Publish có thể bị lặp (at-least-once).
+Mỗi backend instance (consumer group riêng) nhận event; nếu recipient đang kết nối vào instance đó thì đẩy ciphertext qua WebSocket, consumer dedupe theo messageId. Nếu recipient offline, ciphertext vẫn nằm trong PostgreSQL và được đồng bộ theo cursor khi reconnect (đường S).
+Recipient nhận ciphertext, giải mã trên client, chạy AI cục bộ, hiển thị message/cảnh báo và gửi delivered/read ACK. ACK được ghi vào PostgreSQL cùng outbox rồi đi qua topic chat.receipts về instance của sender.
+3.2. Nguyên tắc kiến trúc
+PostgreSQL là nguồn dữ liệu bền vững cho message; Kafka là durable event log để chuyển sự kiện, không phải source of truth; Redis Pub/Sub không được coi là durable message queue.
+Không dual-write: không ghi PostgreSQL rồi publish Kafka bằng hai bước độc lập; dùng transactional outbox.
+Kafka giao at-least-once; consumer và client phải idempotent (dedupe theo messageId). Thứ tự authoritative là seq trong PostgreSQL, không phải thứ tự event đến.
+Đường sync/offline chỉ phụ thuộc PostgreSQL; Kafka lỗi làm chậm realtime chứ không làm mất message đã được server-accepted.
+ACK server-accepted, recipient-delivered và read receipt là các trạng thái khác nhau.
+Retry phải an toàn: dùng clientMessageId/idempotency và unique constraint phù hợp.
+Không lưu plaintext hoặc private keys trong backend logs, database, Redis hay Kafka topics.
+Không gọi AI API bên ngoài với nội dung chat; AI failure phải hiển thị trạng thái unavailable, không khẳng định message an toàn.
+Đo một instance và hai instance trong cùng điều kiện; không giả định scale tuyến tính.
+3.3. Kafka trong hệ thống
+Kafka là durable event log cho pipeline giao message, không phải source of truth. Một message chỉ được coi là tồn tại khi đã commit trong PostgreSQL; Kafka chuyển sự kiện đó tới các backend instance để đẩy realtime.
+Transactional outbox: backend ghi message (kèm seq) và một dòng outbox trong cùng một transaction PostgreSQL; outbox relay đọc bảng outbox rồi publish lên Kafka. Cách này tránh dual-write, tức trường hợp message đã lưu nhưng event bị mất, hoặc ngược lại.
+Giao at-least-once: relay có thể publish lặp (ví dụ crash sau khi publish nhưng trước khi đánh dấu đã gửi). Consumer dedupe theo messageId, client dedupe theo messageId/seq. MVP không dùng exactly-once transactions.
+Mỗi backend instance dùng consumer group riêng (gw-A, gw-B) nên đều nhận mọi event và chỉ đẩy cho recipient đang kết nối vào instance đó. Cách này đơn giản và replay được sau restart, nhưng mỗi instance đọc toàn bộ topic nên chi phí đọc tăng theo số instance; routing theo user/partition là hướng cải tiến (KF7).
+Thứ tự: partition key là conversationId nên event cùng conversation giữ thứ tự publish. Thứ tự authoritative vẫn là seq trong PostgreSQL; client sắp xếp theo seq và gọi sync khi thấy gap.
+Offline và reconnect không phụ thuộc Kafka: client reconnect rồi đọc PostgreSQL theo cursor. Kafka chỉ là đường nhanh cho recipient đang online.
+Redis giữ presence, connection registry, rate limit và tín hiệu ephemeral; không phải đường giao message chính. Redis Pub/Sub chỉ còn là transport dự phòng/so sánh sau feature flag DELIVERY_TRANSPORT (KF16).
+Khi Kafka lỗi: gửi message vẫn được server-accepted vì chỉ cần PostgreSQL; outbox tích backlog và tự drain khi Kafka phục hồi; recipient online nhận trễ hoặc nhận qua sync. Kịch bản này phải được test (EXP12).
+Phương án đã cân nhắc: Redis Streams và Debezium (CDC). MVP chọn outbox relay tự viết (polling) vì ít thành phần vận hành hơn Kafka Connect/Debezium; đổi lại phải tự xử lý duplicate và dọn bảng outbox.
+Kafka topics trong MVP:
+[TABLE]
+Topic | Key | Producer → consumer | Nội dung và ghi chú
+chat.messages | conversationId | Outbox relay → gateway consumer của mọi instance (group gw-A, gw-B) | MessageAccepted: eventId, messageId, conversationId, seq, senderId, recipient, ciphertext + protocol metadata. Không có plaintext.
+chat.receipts | conversationId | Outbox relay → gateway consumer | Delivered/read: messageId, seq, recipientId, state. Instance của sender đẩy trạng thái về client.
+chat.retry | conversationId | Consumer → retry consumer | Event lỗi tạm thời; retry với backoff + jitter (SHOULD).
+chat.dlq | conversationId | Retry consumer → xử lý thủ công | Event lỗi vĩnh viễn (poison); giữ để điều tra, không chặn partition (SHOULD).
+[/TABLE]
+
+Cấu hình MVP: Kafka KRaft một broker, replication factor = 1 nên không có high availability; đây là giới hạn cần ghi rõ trong report. Topic chứa ciphertext nên retention ngắn (giá trị cụ thể do nhóm chốt) và phải nằm trong phạm vi kiểm tra plaintext/log leakage (KF12).
+4. Danh sách problem cần giải quyết
+Phân loại: MUST = phải triển khai/kiểm chứng trong MVP; SHOULD = nên có nếu tiến độ cho phép; EXPERIMENT = mô phỏng/đo để phân tích trade-off; BONUS = không chặn MVP.
+A. Messaging, delivery và consistency
+[TABLE]
+ID | Problem cần giải quyết | Mức
+RS1 | Reliable delivery: ACK bị mất, retry, backend restart | MUST
+RS2 | Idempotency/deduplication: retry không tạo message trùng | MUST
+RS3 | Offline messaging: lưu ciphertext khi recipient offline | MUST
+RS4 | Cursor-based sync sau reconnect, tránh bỏ sót/lặp message | MUST
+RS5 | Message ordering và sequence theo conversation | MUST
+RS6 | Phân biệt server accepted / delivered / read | MUST
+RS7 | Concurrent writes từ nhiều backend instance | MUST
+RS8 | Cursor pagination và tải lịch sử chat | MUST
+RS9 | Multi-device delivery | SHOULD
+RS10 | Retention/xóa message theo chính sách | BONUS
+[/TABLE]
+
+B. WebSocket, routing và presence
+[TABLE]
+ID | Problem cần giải quyết | Mức
+RS11 | WebSocket authentication, lifecycle và đóng kết nối | MUST
+RS12 | Connection registry: user/device đang ở instance nào | MUST
+RS13 | Cross-instance routing (Alice ở A, Bob ở B) qua Kafka consumer group theo instance | MUST
+RS14 | Presence/TTL, heartbeat và stale connection cleanup | SHOULD
+RS15 | Reconnect, backoff và khôi phục trạng thái | MUST
+RS16 | Reconnection storm khi nhiều client reconnect cùng lúc | EXPERIMENT
+RS17 | Backpressure và queue giới hạn | SHOULD
+RS18 | Slow consumer và queue growth | SHOULD
+RS19 | Rate limit/connection limit | MUST (basic)
+RS20 | Phát hiện kết nối chết và dọn trạng thái | MUST
+[/TABLE]
+
+C. Scaling và database
+[TABLE]
+ID | Problem cần giải quyết | Mức
+RS21 | So sánh một backend instance với hai instance | MUST / EXPERIMENT
+RS22 | Database bottleneck khi tăng tải | MUST / EXPERIMENT
+RS23 | Connection pool sizing | SHOULD
+RS24 | Hot conversation tạo contention ra sao | EXPERIMENT
+RS25 | Index cho truy vấn lịch sử chat | MUST
+RS26 | Cursor pagination so với offset pagination | MUST / EXPERIMENT
+RS27 | Contention khi cấp sequence number theo conversation | SHOULD
+RS28 | Redis presence/registry bottleneck | EXPERIMENT
+RS29 | Failure recovery khi một instance chết | MUST
+RS30 | Resource isolation/rate limit theo user | SHOULD
+[/TABLE]
+
+D. Group chat và fan-out
+[TABLE]
+ID | Problem cần giải quyết | Mức
+RS31 | Fan-out on write: phân phối khi ghi | EXPERIMENT
+RS32 | Fan-out on read: recipient truy vấn khi mở chat | EXPERIMENT
+RS33 | Mô phỏng group lớn và fan-out load | BONUS
+RS34 | Membership changes và quyền đọc message | BONUS
+RS35 | Group E2EE/Sender Keys | BONUS
+[/TABLE]
+
+E. Reliability và overload
+[TABLE]
+ID | Problem cần giải quyết | Mức
+RS36 | Retry policy, exponential backoff và jitter | MUST
+RS37 | Timeout nhưng kết quả gửi chưa rõ | MUST
+RS38 | Partial failure: Redis hoặc Kafka lỗi nhưng database còn hoạt động | SHOULD / EXPERIMENT
+RS39 | Graceful degradation khi một thành phần lỗi | MUST
+RS40 | Rate limiting theo user/connection | MUST (basic)
+RS41 | Giới hạn queue/bộ nhớ khi quá tải | SHOULD
+RS42 | Load shedding khi hệ thống overload | BONUS / RESEARCH
+RS43 | Đo recovery time và thời gian đồng bộ lại | MUST / EXPERIMENT
+[/TABLE]
+
+F. E2EE và bảo mật
+[TABLE]
+ID | Problem cần giải quyết | Mức
+SC1 | Tích hợp thư viện Signal Protocol; không tự viết crypto | MUST
+SC2 | Identity key, pre-key, session và xử lý key changes | MUST (theo phạm vi thư viện)
+SC3 | Offline delivery vẫn giải mã được ở recipient | MUST
+SC4 | Multi-device key management | SHOULD / giới hạn phạm vi
+SC5 | Authorization và conversation membership checks | MUST
+SC6 | Tài liệu hóa metadata mà server vẫn thấy | MUST
+SC7 | Kiểm tra plaintext leakage ở network/DB/Redis/Kafka topics/logs | MUST
+SC8 | Threat model và giới hạn khi endpoint bị xâm nhập | MUST
+SC9 | Xử lý session thiếu hoặc decrypt thất bại | MUST
+[/TABLE]
+
+G. AI/ML development
+[TABLE]
+ID | Problem cần giải quyết | Mức
+AI1 | Dataset selection, nguồn và điều kiện sử dụng | MUST
+AI2 | Data cleaning và pipeline tái lập | MUST
+AI3 | Label definition cho phishing/scam/spam | MUST
+AI4 | Message phishing/scam detector | MUST
+AI5 | Malicious URL detector | MUST
+AI6 | Baseline/model comparison | MUST
+AI7 | Tránh data leakage và chia test độc lập | MUST
+AI8 | Precision/recall/F1/confusion matrix | MUST
+AI9 | Phân tích false negatives | MUST
+AI10 | Phân tích false positives | MUST
+AI11 | Ít nhất một hướng model optimization có số đo | SHOULD
+AI12 | Tài liệu hóa giới hạn model và ngôn ngữ hỗ trợ | MUST
+[/TABLE]
+
+H. AI integration, deployment và privacy
+[TABLE]
+ID | Problem cần giải quyết | Mức
+AI13 | Chọn vị trí inference; ưu tiên on-device | MUST
+AI14 | Export/runtime compatibility (ví dụ ONNX Runtime Web nếu phù hợp) | MUST
+AI15 | Frontend–model contract: labels, confidence, errors | MUST
+AI16 | Đối chiếu kết quả Python với runtime client | MUST
+AI17 | Model loading/caching/versioning | SHOULD
+AI18 | Cold start và warm inference latency | MUST
+AI19 | CPU/RAM/model size | MUST
+AI20 | Chi phí khi chạy hai model trong cùng luồng | MUST
+AI21 | Benchmark AI ON vs OFF | MUST
+AI22 | Model lỗi không làm hỏng chức năng chat | MUST
+AI23 | Không gửi plaintext đến server/dịch vụ AI bên ngoài | MUST
+AI24 | Cảnh báo UI không khẳng định model bảo đảm an toàn | MUST
+AI25 | Chọn threshold dựa trên validation set | SHOULD
+AI26 | Kiểm thử trên browser/thiết bị mục tiêu | MUST
+[/TABLE]
+
+I. Infrastructure, observability và experiments
+[TABLE]
+ID | Problem cần giải quyết | Mức
+INF1 | Docker Compose/reproducible environment | MUST
+INF2 | Migration và cấu hình qua environment variables | MUST
+INF3 | Structured logs không chứa plaintext/secret | MUST
+INF4 | Metrics cho delivery latency, throughput, errors, retries, consumer lag, outbox backlog | MUST
+INF5 | Restart backend/Redis/database/Kafka và kiểm tra recovery | MUST / có chọn lọc
+INF6 | Kafka (KRaft, một broker) trong Docker Compose; topic tạo bằng init script; cấu hình qua environment variables | MUST
+EXP1 | Backend baseline: throughput, p50/p95/p99, error rate | MUST
+EXP2 | Một instance vs hai instance | MUST
+EXP3 | Cross-instance delivery correctness | MUST
+EXP4 | Offline/reconnect: loss, duplicates, recovery time | MUST
+EXP5 | Reconnection storm/backpressure | SHOULD
+EXP6 | Database/index/pagination benchmark | SHOULD
+EXP7 | Hot conversation/fan-out mô phỏng | EXPERIMENT
+EXP8 | AI quality + inference performance | MUST
+EXP9 | AI ON/OFF latency/resource overhead | MUST
+EXP10 | Trước/sau một tối ưu có kiểm soát | SHOULD
+EXP11 | Latency breakdown: server-accepted → outbox publish → Kafka consume → push tới recipient | MUST
+EXP12 | Kafka outage/restart khi đang gửi: outbox backlog, drain time, missing/duplicate messages | MUST
+EXP13 | Redis Pub/Sub vs Kafka làm delivery transport (feature flag), cùng tải | EXPERIMENT
+[/TABLE]
+
+J. Kafka event pipeline (outbox, delivery, failure)
+[TABLE]
+ID | Problem cần giải quyết | Mức
+KF1 | Dual-write: ghi PostgreSQL và publish Kafka không atomic → dùng transactional outbox (message + outbox trong cùng một transaction) | MUST
+KF2 | Outbox relay: polling, đánh dấu đã publish; crash giữa publish và mark gây duplicate; chỉ một relay active (advisory lock) | MUST
+KF3 | Producer reliability: acks=all, idempotent producer, retry/timeout, xử lý khi broker không sẵn sàng | MUST
+KF4 | Partition key = conversationId; thứ tự authoritative là seq trong PostgreSQL, client phát hiện gap theo seq và gọi sync | MUST
+KF5 | At-least-once → consumer idempotent: dedupe theo messageId/eventId; replay không tạo message hiển thị trùng | MUST
+KF6 | Offset commit đúng thời điểm (sau khi đẩy WebSocket/xử lý xong); recipient mất kết nối không làm mất message vì PostgreSQL vẫn là nguồn sync | MUST
+KF7 | Cross-instance delivery: consumer group riêng cho mỗi instance (broadcast) vs routing theo user/partition; chi phí read amplification | MUST / EXPERIMENT
+KF8 | Kafka lỗi hoặc chậm: send vẫn server-accepted, outbox backlog tăng và tự drain khi phục hồi; UI không báo sai trạng thái | MUST
+KF9 | Consumer lag, slow consumer và backpressure giữa Kafka consumer và WebSocket client chậm | SHOULD
+KF10 | Restart/rebalance: instance id ổn định, replay sau restart, không mất/trùng message sau rebalance | SHOULD
+KF11 | Retry topic, DLQ và poison event (event lỗi không chặn partition) | SHOULD
+KF12 | Plaintext/ciphertext leakage trong Kafka: payload, retention, logs; kiểm tra nội dung topic | MUST
+KF13 | Event schema và versioning (eventId, eventType, schemaVersion); tương thích ngược khi đổi schema | SHOULD
+KF14 | Topic config: số partition, retention, replication factor = 1 trong Compose (nêu rõ không có HA) | SHOULD
+KF15 | Dọn bảng outbox (retention) để bảng không phình | SHOULD
+KF16 | So sánh Redis Pub/Sub và Kafka làm delivery transport (feature flag): latency, throughput, durability | EXPERIMENT
+KF17 | Group fan-out qua Kafka (một event → nhiều recipient), liên hệ RS31–RS33 | BONUS
+[/TABLE]
+
+5. Bốn tuần triển khai song song
+Tuần 1 — Foundation + proof of concept
+Backend Core: chốt schema (gồm bảng outbox), migrations, API contract, auth/authz; làm persistence skeleton với mock ciphertext.
+Realtime/Protocol: kiểm chứng thư viện Signal Protocol và mô hình key/pre-key ngay đầu tuần; dựng WebSocket, connection registry; thiết kế Redis presence/registry.
+Kafka PoC: thêm Kafka (KRaft, một broker) vào Docker Compose; chọn Go client; produce/consume thử một topic với hai consumer group; xác nhận replay sau restart.
+Frontend/E2EE: wireframe chat, login, mock chat; thử encrypt/decrypt giữa hai client bằng thư viện đã chọn.
+AI: chọn dataset và label; xây baseline cho cả message và URL; lập test set; kiểm tra runtime mục tiêu.
+Cả nhóm: dựng Docker Compose, chốt message contract, AI contract và metric definitions.
+Gate cuối tuần: hai client trao đổi mock message; backend lưu ciphertext giả; hai baseline AI có kết quả ban đầu; E2EE proof-of-concept đã được xác minh; Kafka produce/consume PoC chạy trong Docker Compose.
+Tuần 2 — MVP core
+Backend Core: persistence thật, idempotency, server-accepted ACK, delivery/read state, history API và index.
+Backend Core (producer side): ghi message + outbox trong cùng transaction; outbox relay publish chat.messages (acks=all, idempotent producer); test crash giữa publish và mark sent.
+Realtime/Protocol: WebSocket auth, heartbeat/reconnect cơ bản, gateway consumer nhận chat.messages và đẩy cho recipient online (một instance trước); tiếp tục protocol/key integration support.
+Frontend/E2EE: tích hợp mã hóa/giải mã thật; gửi ciphertext; xử lý lỗi session/decrypt.
+AI: cải thiện model, đánh giá precision/recall/F1; chốt interface và thử export/runtime.
+Cả nhóm: kiểm thử retry, duplicate request và kiểm tra DB/network/Kafka topic không chứa plaintext.
+Gate cuối tuần: 1:1 E2EE chat end-to-end; ACK/idempotency hoạt động; hai model chạy được trong môi trường phát triển; message đi được qua outbox → Kafka → consumer tới recipient online.
+Tuần 3 — Distributed routing + AI integration
+Backend Core: offline delivery, cursor-based synchronization, ordering và pagination; delivered/read ACK đi qua outbox → chat.receipts.
+Realtime/Protocol: Redis presence/registry; chạy hai backend instances với consumer group riêng (gw-A, gw-B); kiểm thử Alice ở A gửi cho Bob ở B qua Kafka; thử restart backend/Kafka/reconnect; metrics consumer lag và outbox backlog.
+Realtime/Protocol (SHOULD): chat.retry/chat.dlq và feature flag DELIVERY_TRANSPORT để giữ Redis Pub/Sub làm đường dự phòng và so sánh.
+Frontend/E2EE: tích hợp AI vào send/receive flow; cảnh báo trước khi gửi; UI degraded mode khi model lỗi.
+AI: triển khai inference client-side; đo cold/warm latency, model size, CPU/RAM; tối ưu ít nhất một điểm nếu kết quả cho thấy cần.
+Cả nhóm: benchmark AI ON/OFF; kiểm tra đồng nhất kết quả Python và runtime client.
+Gate cuối tuần: offline sync, cross-instance routing qua Kafka và AI client-side đã tích hợp; có số đo AI ban đầu.
+Tuần 4 — Correctness, benchmark, security và demo
+Backend Core: test delivery correctness, query/index, pagination, failure recovery và outbox backlog drain.
+Realtime/Protocol: k6 test 10/50/100 clients nếu máy cho phép; so sánh một/two instances; đo throughput, latency, errors, CPU/RAM.
+Kafka experiments: dừng/khởi động lại Kafka khi đang gửi (đo backlog, drain time, missing/duplicate); đo latency breakdown accepted → publish → consume → push; nếu kịp, so sánh Redis Pub/Sub và Kafka.
+Frontend/E2EE: kiểm tra payload, local keys, logs và lỗi decrypt; hoàn thiện UI/demo.
+AI: chốt model metrics, false-positive/negative analysis, inference benchmark và AI ON/OFF comparison.
+Cả nhóm: chọn một bottleneck để tối ưu; chạy lại cùng kịch bản; quét plaintext trên network/DB/Redis/Kafka/logs; viết architecture/threat model/trade-off report.
+Gate cuối tuần: demo có thể tái lập, benchmark có cấu hình rõ ràng, security checklist hoàn thành và giới hạn hệ thống được tài liệu hóa.
+6. Benchmark plan và tiêu chí đánh giá
+[TABLE]
+Experiment | Cấu hình | Metrics chính | Cần kết luận
+Backend baseline | Một instance, tải tăng dần | Throughput; p50/p95/p99; error rate; CPU/RAM | Baseline và điểm bắt đầu suy giảm
+Scale-out | Một vs hai instances, cùng tải | Throughput; latency; errors; tổng tài nguyên | Scaling có lợi không; bottleneck ở đâu
+Delivery correctness | ACK loss, retries, offline recipient, restart | Missing/duplicate messages; recovery time | Retry/sync có an toàn không
+Kafka pipeline latency | Một và hai instances, cùng tải, AI OFF | Latency breakdown: accepted → publish → consume → push; consumer lag; outbox backlog | Kafka thêm bao nhiêu latency; bước nào chiếm nhiều nhất
+Kafka failure & recovery | Dừng Kafka hoặc restart consumer/backend khi đang gửi | Missing/duplicate messages; outbox backlog; drain time; error rate | Có mất hoặc trùng message không; thời gian phục hồi
+Transport comparison (EXPERIMENT) | Redis Pub/Sub vs Kafka (feature flag), cùng tải | Throughput; p50/p95/p99; message loss khi restart; CPU/RAM | Đánh đổi giữa latency và độ bền; Kafka có đáng dùng cho MVP không
+Reconnect storm | Nhiều client reconnect gần đồng thời | Reconnect success; latency; error rate; CPU/RAM | Backoff/jitter và giới hạn có đủ không
+AI quality | Tập test cố định cho mỗi model | Precision; recall; F1; confusion matrix | Chất lượng và loại lỗi phổ biến
+AI performance | Cold start, warm inference, hai model | Latency p50/p95/p99; model size; CPU/RAM | Chi phí thực tế của inference
+AI ON/OFF | Cùng kịch bản chat, chỉ thay trạng thái AI | End-to-end send latency; inference overhead | AI làm tăng latency bao nhiêu
+Security validation | Kiểm tra network, DB, Redis, Kafka topics, logs | Checklist pass/fail; bằng chứng kiểm thử | Plaintext/private key có bị lộ không
+Optimization | Một thay đổi mỗi lần, cùng kịch bản | Trước/sau; chất lượng và correctness | Cải tiến có đo được mà không gây regression không
+[/TABLE]
+
+Không đặt trước các con số throughput/latency như cam kết. Đo trên máy và cấu hình thực tế của nhóm; ghi rõ số client, thời gian test, phiên bản code, tài nguyên máy và giới hạn của kết quả.
+7. API/contract cần chốt trong tuần 1
+7.1. Message envelope tối thiểu
+messageId/clientMessageId: định danh để idempotency và deduplication.
+conversationId: định danh conversation; server phải kiểm tra membership.
+senderId: lấy từ danh tính đã xác thực, không tin mù quáng giá trị client gửi.
+ciphertext + protocol metadata cần thiết cho thư viện E2EE; không gửi plaintext.
+createdAt/client timestamp chỉ là metadata tham khảo; thứ tự authoritative cần được server/database xác định theo thiết kế.
+ACK/state: accepted, delivered, read được biểu diễn tách biệt.
+7.2. AI interface
+Ví dụ interface để các thành viên phát triển độc lập; nhóm phải chốt label, threshold, timeout và lỗi cụ thể.
+interface MessageAnalysis {  label: string;  confidence: number;}interface UrlAnalysis {  label: string;  confidence: number;}async function analyzeMessage(text: string): Promise<MessageAnalysis>;async function analyzeUrl(url: string): Promise<UrlAnalysis>;
+Nếu inference lỗi hoặc model chưa sẵn sàng, frontend phải hiển thị trạng thái 'AI không khả dụng/không thể phân tích'. Không được suy diễn rằng message an toàn chỉ vì không có cảnh báo.
+7.3. Kafka event contract và outbox
+Topic và key: chat.messages, chat.receipts; key = conversationId.
+Envelope: eventId (UUID, dùng để dedupe), eventType (MessageAccepted | MessageDelivered | MessageRead), schemaVersion, occurredAt.
+Payload MessageAccepted: messageId, clientMessageId, conversationId, seq, senderId, recipient, ciphertext + protocol metadata. Không có plaintext.
+Payload receipt: messageId, conversationId, seq, recipientId, state.
+Semantics: at-least-once; consumer phải idempotent; chỉ commit offset sau khi xử lý xong; đổi schema phải tương thích ngược (thêm field, không đổi nghĩa field cũ).
+Bảng outbox: id tăng dần, eventType, key, payload, createdAt, publishedAt. Relay đọc theo thứ tự id và chỉ đánh dấu publishedAt sau khi broker ack.
+8. Milestones và quản lý rủi ro
+[TABLE]
+Mốc | Tiêu chí đạt | Nếu chưa đạt
+Ngày 2 | Chốt kiến trúc, message/AI contract và Kafka event schema; thư viện E2EE được chọn và thử nghiệm | Cắt scope protocol nâng cao; ưu tiên xác minh thư viện
+Ngày 7 | Mock chat, môi trường chạy (gồm Kafka PoC produce/consume), AI baselines | Giảm tính năng UI; tiếp tục backend và AI song song; nếu Kafka PoC chưa ổn, chốt phương án dự phòng Redis Pub/Sub
+Ngày 14 | E2EE chat end-to-end, persistence, idempotency và outbox → Kafka → consumer cho recipient online | Không mở rộng group chat; ưu tiên hoàn thiện E2EE; nếu đường Kafka chưa ổn định, giữ outbox và dùng Redis Pub/Sub làm transport (feature flag), Kafka chuyển thành experiment
+Ngày 21 | Offline sync, two-instance routing qua Kafka, AI tích hợp | Cắt presence nâng cao, retry/DLQ và các experiment bonus
+Ngày 25 | Feature freeze; chỉ sửa lỗi và benchmark | Không thêm feature mới
+Ngày 28 | Demo, report, security checklist, số liệu benchmark | Ưu tiên demo tái lập và báo cáo giới hạn trung thực
+[/TABLE]
+
+9. Scope control: không đưa vào MVP
+Kubernetes, multi-region và kiến trúc microservices phức tạp.
+Kafka cluster nhiều broker/HA, exactly-once transactions, Kafka Streams, Schema Registry, Kafka Connect/Debezium; Kafka chỉ ở mức một broker KRaft + transactional outbox tự viết.
+Tự triển khai cryptographic primitives hoặc protocol E2EE riêng.
+Group chat lớn/group E2EE hoàn chỉnh; có thể nghiên cứu fan-out bằng experiment.
+Huấn luyện LLM từ đầu, smart reply, summarization hoặc chatbot.
+Cam kết hàng triệu concurrent users mà không có hạ tầng và benchmark phù hợp.
+MLOps/model registry phức tạp; dùng versioning đơn giản cho model là đủ.
+10. Deliverables cuối cùng
+Source code frontend/backend và hướng dẫn chạy bằng Docker Compose.
+System design diagram và giải thích các trust boundary.
+API/message contract, Kafka event contract và schema database (gồm bảng outbox).
+1:1 E2EE chat; backend chỉ lưu ciphertext cùng metadata cần thiết.
+Hai model AI cùng evaluation report; ưu tiên on-device inference.
+Tests cho ACK/idempotency/offline sync/cross-instance routing và outbox + Kafka (duplicate, restart, outage).
+Benchmark report: backend scale-out, delivery correctness, Kafka pipeline latency và failure recovery, AI quality, AI latency và AI ON/OFF.
+Security checklist, threat model cơ bản, metadata limitations và các hướng phát triển tiếp.
+11. Tài liệu tham khảo kỹ thuật
+Discord — How Discord Stores Trillions of Messages: https://discord.com/blog/how-discord-stores-trillions-of-messages
+Discord — Pushing Discord’s Limits with a Million+ Online Users in a Single Server: https://discord.com/blog/maxjourney-pushing-discords-limits-with-a-million-plus-online-users-in-a-single-server
+Discord — How Discord Reduced WebSocket Traffic by 40%: https://discord.com/blog/how-discord-reduced-websocket-traffic-by-40-percent
+Redis Streams documentation: https://redis.io/docs/latest/develop/data-types/streams/
+ONNX Runtime Web documentation: https://onnxruntime.ai/docs/tutorials/web/
+Grafana k6 documentation: https://grafana.com/docs/k6/latest/
+Go documentation: https://go.dev/
+React documentation: https://react.dev/
+Apache Kafka documentation: https://kafka.apache.org/documentation/
+Transactional outbox pattern (microservices.io): https://microservices.io/patterns/data/transactional-outbox.html
+

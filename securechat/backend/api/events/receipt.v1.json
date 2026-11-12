@@ -2,23 +2,77 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "MessageDelivered / MessageRead v1 (topic chat.receipts, key = conversationId)",
   "type": "object",
-  "required": ["eventId", "eventType", "schemaVersion", "occurredAt", "payload"],
+  "required": [
+    "eventId",
+    "eventType",
+    "schemaVersion",
+    "occurredAt",
+    "payload"
+  ],
   "properties": {
-    "eventId": { "type": "string", "format": "uuid" },
-    "eventType": { "enum": ["MessageDelivered", "MessageRead"] },
-    "schemaVersion": { "type": "integer", "minimum": 1 },
-    "occurredAt": { "type": "string", "format": "date-time" },
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "enum": [
+        "MessageDelivered",
+        "MessageRead"
+      ]
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
     "payload": {
       "type": "object",
-      "required": ["messageId", "conversationId", "seq", "recipientId", "state"],
+      "required": [
+        "messageId",
+        "conversationId",
+        "seq",
+        "recipientId",
+        "state"
+      ],
       "properties": {
-        "messageId": { "type": "string", "format": "uuid" },
-        "conversationId": { "type": "string", "format": "uuid" },
-        "seq": { "type": "integer" },
-        "recipientId": { "type": "string", "format": "uuid" },
-        "senderId": { "type": "string", "format": "uuid", "description": "additive v1 field: routes the receipt back to the sender's instance" },
-        "state": { "enum": ["delivered", "read"] },
-        "at": { "type": "string", "format": "date-time" }
+        "messageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "conversationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "recipientId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "senderId": {
+          "type": "string",
+          "format": "uuid",
+          "description": "additive v1 field: routes the receipt back to the sender's instance"
+        },
+        "state": {
+          "enum": [
+            "delivered",
+            "read"
+          ]
+        },
+        "at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "receiptSeq": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Additive durable receipt change cursor scoped to conversation"
+        }
       }
     }
   }

@@ -8,6 +8,7 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -48,19 +49,29 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 	if err := cmd.Validate(s.maxCiphertext); err != nil {
 		return domain.SendResult{}, err
 	}
+	if len(cmd.ProtocolMeta) == 0 {
+		cmd.ProtocolMeta = json.RawMessage(`{}`)
+	}
+	if cmd.ClientCreatedAt != nil {
+		at := cmd.ClientCreatedAt.UTC().Truncate(time.Microsecond)
+		cmd.ClientCreatedAt = &at
+	}
 	if err := s.requireMember(ctx, cmd.ConversationID, cmd.SenderID); err != nil {
 		return domain.SendResult{}, err
 	}
 
 	// Fast idempotency path: client retried after a lost ACK (RS1, RS2, RS37).
 	if existing, err := store.FindByClientID(ctx, s.pool, cmd.SenderID, cmd.ClientMessageID); err == nil {
-		return s.duplicate(existing, cmd.ConversationID)
+		return s.duplicate(ctx, existing, cmd)
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return domain.SendResult{}, err
 	}
 
 	var msg domain.Message
 	err := postgres.WithTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := store.LockMember(ctx, tx, cmd.ConversationID, cmd.SenderID); err != nil {
+			return err
+		}
 		seq, err := store.NextSeq(ctx, tx, cmd.ConversationID)
 		if err != nil {
 			return fmt.Errorf("next seq: %w", err)
@@ -110,7 +121,7 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 		if ferr != nil {
 			return domain.SendResult{}, ferr
 		}
-		return s.duplicate(existing, cmd.ConversationID)
+		return s.duplicate(ctx, existing, cmd)
 	}
 	if err != nil {
 		return domain.SendResult{}, err
@@ -119,10 +130,16 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 	return domain.SendResult{Message: msg}, nil
 }
 
-func (s *Service) duplicate(m domain.Message, convID uuid.UUID) (domain.SendResult, error) {
-	if m.ConversationID != convID {
-		// Same clientMessageId reused for a different conversation: client bug.
-		return domain.SendResult{}, fmt.Errorf("%w: clientMessageId reused", domain.ErrInvalidInput)
+func (s *Service) duplicate(ctx context.Context, m domain.Message, cmd domain.SendCommand) (domain.SendResult, error) {
+	if m.ConversationID != cmd.ConversationID {
+		return domain.SendResult{}, domain.ErrConflict
+	}
+	match, err := store.MatchesRetry(ctx, s.pool, m.ID, cmd)
+	if err != nil {
+		return domain.SendResult{}, err
+	}
+	if !match {
+		return domain.SendResult{}, domain.ErrConflict
 	}
 	metrics.MessagesDuplicate.Inc()
 	return domain.SendResult{Message: m, Duplicate: true}, nil
@@ -141,11 +158,17 @@ func (s *Service) Acknowledge(ctx context.Context, userID, messageID uuid.UUID, 
 		return err
 	}
 	if msg.SenderID == userID {
-		return nil // sender's own devices don't produce receipts (TODO RS9 multi-device)
+		return domain.ErrNotMember // Only a recipient establishes delivered/read.
 	}
 
-	now := s.now().UTC()
 	return postgres.WithTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := store.LockMember(ctx, tx, msg.ConversationID, userID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT id FROM conversations WHERE id=$1 FOR UPDATE`, msg.ConversationID); err != nil {
+			return err
+		}
+		now := s.now().UTC()
 		changed, err := store.UpsertReceipt(ctx, tx, messageID, userID, state, now)
 		if err != nil || !changed {
 			return err // idempotent: repeated ACK emits nothing
@@ -154,8 +177,13 @@ func (s *Service) Acknowledge(ctx context.Context, userID, messageID uuid.UUID, 
 		if state == domain.StateRead {
 			evType = events.TypeMessageRead
 		}
+		revision, err := store.AppendReceiptChange(ctx, tx, msg, userID, state, now)
+		if err != nil {
+			return err
+		}
 		env, err := events.New(evType, events.Receipt{
-			MessageID: msg.ID, ConversationID: msg.ConversationID, Seq: msg.Seq,
+			ReceiptSeq: revision,
+			MessageID:  msg.ID, ConversationID: msg.ConversationID, Seq: msg.Seq,
 			RecipientID: userID, SenderID: msg.SenderID, State: string(state), At: now,
 		}, now)
 		if err != nil {
@@ -167,51 +195,121 @@ func (s *Service) Acknowledge(ctx context.Context, userID, messageID uuid.UUID, 
 
 // History returns older messages for scrolling back (RS8). Newest first.
 func (s *Service) History(ctx context.Context, userID, convID uuid.UUID, beforeSeq int64, limit int) ([]domain.Message, error) {
+	if beforeSeq < 0 {
+		return nil, domain.ErrInvalidInput
+	}
 	if err := s.requireMember(ctx, convID, userID); err != nil {
 		return nil, err
 	}
-	return store.MessagesBefore(ctx, s.pool, convID, beforeSeq, clampLimit(limit))
+	messages, err := store.MessagesBefore(ctx, s.pool, convID, beforeSeq, clampLimit(limit))
+	if err != nil {
+		return nil, err
+	}
+	messages, _ = boundMessagePage(messages, false)
+	return messages, nil
 }
 
 // SyncResult is one page per conversation.
 type SyncResult struct {
-	ConversationID uuid.UUID        `json:"conversationId"`
-	Messages       []domain.Message `json:"messages"`
-	NextCursor     int64            `json:"nextCursor"`
-	HasMore        bool             `json:"hasMore"`
+	ConversationID    uuid.UUID        `json:"conversationId"`
+	Messages          []domain.Message `json:"messages"`
+	NextCursor        int64            `json:"nextCursor"`
+	HasMore           bool             `json:"hasMore"`
+	Receipts          []domain.Receipt `json:"receipts"`
+	NextReceiptCursor int64            `json:"nextReceiptCursor"`
+	HasMoreReceipts   bool             `json:"hasMoreReceipts"`
 }
 
 // Sync returns messages after the client's per-conversation cursor (RS3, RS4, SC3).
 // Depends on PostgreSQL only – works even when Kafka is down (KF8).
 func (s *Service) Sync(ctx context.Context, userID uuid.UUID, cursors map[uuid.UUID]int64, limit int) ([]SyncResult, error) {
+	return s.SyncWithReceipts(ctx, userID, cursors, nil, limit)
+}
+
+func (s *Service) SyncWithReceipts(ctx context.Context, userID uuid.UUID, cursors, receiptCursors map[uuid.UUID]int64, limit int) ([]SyncResult, error) {
+	if limit < 0 || limit > 200 {
+		return nil, domain.ErrInvalidInput
+	}
+	if len(cursors) > 500 || len(receiptCursors) > 500 {
+		return nil, domain.ErrInvalidInput
+	}
+	for _, cursor := range cursors {
+		if cursor < 0 {
+			return nil, domain.ErrInvalidInput
+		}
+	}
+	for _, cursor := range receiptCursors {
+		if cursor < 0 {
+			return nil, domain.ErrInvalidInput
+		}
+	}
 	limit = clampLimit(limit)
 	convs, err := store.ListConversations(ctx, s.pool, userID)
 	if err != nil {
 		return nil, err
 	}
+	members := make(map[uuid.UUID]bool, len(convs))
+	for _, c := range convs {
+		members[c.ID] = true
+	}
+	for id := range cursors {
+		if !members[id] {
+			return nil, domain.ErrNotMember
+		}
+	}
+	for id := range receiptCursors {
+		if !members[id] {
+			return nil, domain.ErrNotMember
+		}
+	}
 	out := make([]SyncResult, 0, len(convs))
 	for _, c := range convs {
 		cursor := cursors[c.ID]
-		if c.LastSeq <= cursor {
-			continue
-		}
 		msgs, err := store.MessagesAfter(ctx, s.pool, c.ID, cursor, limit+1)
 		if err != nil {
 			return nil, err
 		}
-		res := SyncResult{ConversationID: c.ID, NextCursor: cursor}
+		res := SyncResult{ConversationID: c.ID, NextCursor: cursor, NextReceiptCursor: receiptCursors[c.ID]}
 		if len(msgs) > limit {
 			msgs, res.HasMore = msgs[:limit], true
 		}
 		if len(msgs) > 0 {
+			msgs, res.HasMore = boundMessagePage(msgs, res.HasMore)
 			res.NextCursor = msgs[len(msgs)-1].Seq
 		}
 		res.Messages = msgs
+		receipts, err := store.ReceiptChangesAfter(ctx, s.pool, c.ID, receiptCursors[c.ID], limit+1)
+		if err != nil {
+			return nil, err
+		}
+		if len(receipts) > limit {
+			receipts, res.HasMoreReceipts = receipts[:limit], true
+		}
+		res.Receipts = receipts
+		if len(receipts) > 0 {
+			res.NextReceiptCursor = receipts[len(receipts)-1].ReceiptSeq
+		}
+		if len(msgs) == 0 && len(receipts) == 0 {
+			continue
+		}
 		out = append(out, res)
 	}
 	// TODO(BE1, RS22): one query per conversation is fine for MVP; batch with
 	// LATERAL join if the DB benchmark shows it matters.
 	return out, nil
+}
+
+// Bound each message page to roughly 1 MiB serialized, in addition to row count.
+func boundMessagePage(messages []domain.Message, hasMore bool) ([]domain.Message, bool) {
+	size := 0
+	for i, m := range messages {
+		b, _ := json.Marshal(m)
+		size += len(b)
+		if size > 1<<20 && i > 0 {
+			return messages[:i], true
+		}
+	}
+	return messages, hasMore
 }
 
 // CreateDirect returns (or creates) the 1:1 conversation with peer.

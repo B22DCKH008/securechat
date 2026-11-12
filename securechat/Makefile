@@ -24,8 +24,8 @@ build:           ## Build backend binary
 test:            ## Unit tests
 	cd backend && go test ./...
 
-test-integration: ## Integration tests (stack must be up)
-	cd backend && go test -tags=integration ./tests/integration/...
+test-integration: .env ## Real PostgreSQL/Kafka tests with Linux race detector
+	docker compose -f docker-compose.yml -f compose.test.yml run --rm be1-test
 
 lint:
 	cd backend && go vet ./... && gofmt -l .

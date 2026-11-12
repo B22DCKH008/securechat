@@ -1,0 +1,72 @@
+=== Symbol Results ===
+
+Vulnerability #1: GO-2026-6865
+    Panic on two-block frames in github.com/klauspost/compress
+  More info: https://pkg.go.dev/vuln/GO-2026-6865
+  Module: github.com/klauspost/compress
+    Found in: github.com/klauspost/compress@v1.17.9
+    Fixed in: github.com/klauspost/compress@v1.20.2
+    Example traces found:
+      #1: cmd/dbbench/main.go:58:15: dbbench.main calls fmt.Fprintln, which eventually calls fse.Compress
+      #2: cmd/dbbench/main.go:58:15: dbbench.main calls fmt.Fprintln, which eventually calls fse.Decompress
+      #3: cmd/dbbench/main.go:58:15: dbbench.main calls fmt.Fprintln, which eventually calls huff0.Compress1X
+      #4: cmd/dbbench/main.go:58:15: dbbench.main calls fmt.Fprintln, which eventually calls huff0.Compress4X
+      #5: cmd/dbbench/main.go:58:15: dbbench.main calls fmt.Fprintln, which eventually calls huff0.ReadTable
+
+Vulnerability #2: GO-2026-6629
+    Panic parsing crafted input in x/text/secure/precis in golang.org/x/text
+  More info: https://pkg.go.dev/vuln/GO-2026-6629
+  Module: golang.org/x/text
+    Found in: golang.org/x/text@v0.21.0
+    Fixed in: golang.org/x/text@v0.41.0
+    Example traces found:
+      #1: cmd/dbbench/main.go:86:25: dbbench.run calls pgx.Connect, which eventually calls precis.Profile.Bytes
+
+Vulnerability #3: GO-2026-5970
+    Infinite loop on invalid input in golang.org/x/text
+  More info: https://pkg.go.dev/vuln/GO-2026-5970
+  Module: golang.org/x/text
+    Found in: golang.org/x/text@v0.21.0
+    Fixed in: golang.org/x/text@v0.39.0
+    Example traces found:
+      #1: cmd/dbbench/main.go:86:25: dbbench.run calls pgx.Connect, which eventually calls norm.Form.Properties
+      #2: cmd/dbbench/main.go:86:25: dbbench.run calls pgx.Connect, which eventually calls norm.Form.Span
+      #3: cmd/dbbench/main.go:86:25: dbbench.run calls pgx.Connect, which eventually calls norm.Form.Transform
+
+Vulnerability #4: GO-2026-5004
+    SQL Injection via placeholder confusion with dollar quoted string literals
+    in github.com/jackc/pgx
+  More info: https://pkg.go.dev/vuln/GO-2026-5004
+  Module: github.com/jackc/pgx/v5
+    Found in: github.com/jackc/pgx/v5@v5.7.1
+    Fixed in: github.com/jackc/pgx/v5@v5.9.2
+    Example traces found:
+      #1: internal/store/outbox.go:36:23: store.FetchUnpublished calls pgxpool.Conn.Query, which eventually calls sanitize.SanitizeSQL
+
+Vulnerability #5: GO-2025-3553
+    Excessive memory allocation during header parsing in
+    github.com/golang-jwt/jwt
+  More info: https://pkg.go.dev/vuln/GO-2025-3553
+  Module: github.com/golang-jwt/jwt/v5
+    Found in: github.com/golang-jwt/jwt/v5@v5.2.1
+    Fixed in: github.com/golang-jwt/jwt/v5@v5.2.2
+    Example traces found:
+      #1: internal/auth/auth.go:66:31: auth.Issuer.parse calls jwt.ParseWithClaims, which eventually calls jwt.Parser.ParseUnverified
+
+Vulnerability #6: GO-2025-3540
+    Potential out of order responses when CLIENT SETINFO times out during
+    connection establishment in github.com/redis/go-redis
+  More info: https://pkg.go.dev/vuln/GO-2025-3540
+  Module: github.com/redis/go-redis/v9
+    Found in: github.com/redis/go-redis/v9@v9.7.0
+    Fixed in: github.com/redis/go-redis/v9@v9.7.3
+    Example traces found:
+      #1: internal/delivery/redis_pubsub.go:27:24: delivery.RedisSubscriber.Run calls redis.Client.Subscribe, which eventually calls redis.baseClient.initConn
+      #2: internal/delivery/redis_pubsub.go:27:24: delivery.RedisSubscriber.Run calls redis.Client.Subscribe, which eventually calls redis.baseClient.initConn
+      #3: internal/delivery/redis_pubsub.go:27:24: delivery.RedisSubscriber.Run calls redis.Client.Subscribe, which eventually calls redis.baseClient.initConn
+
+Your code is affected by 6 vulnerabilities from 5 modules.
+This scan also found 4 vulnerabilities in packages you import and 22
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.

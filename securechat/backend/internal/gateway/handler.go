@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"github.com/securechat/backend/internal/auth"
 	"github.com/securechat/backend/internal/domain"
 	"github.com/securechat/backend/internal/metrics"
 )
@@ -29,16 +30,16 @@ type (
 		Allow(ctx context.Context, scope, subject string) bool
 	}
 	TokenVerifier interface {
-		Verify(token string) (uuid.UUID, error)
+		Verify(context.Context, string) (auth.Principal, error)
 	}
 )
 
 type Options struct {
-	AllowedOrigins  []string
-	PingInterval    time.Duration
-	PongTimeout     time.Duration
-	SendBuffer      int
-	MaxMessageBytes int64
+	AllowedOrigins []string
+	PingInterval   time.Duration
+	PongTimeout    time.Duration
+	SendBuffer     int
+	MaxFrameBytes  int64 // full inbound JSON message; decoded ciphertext is bounded by Messenger
 }
 
 type Handler struct {
@@ -59,17 +60,23 @@ func NewHandler(hub *Hub, msg Messenger, p Presence, l Limiter, t TokenVerifier,
 // Browsers cannot set Authorization headers on WebSocket, hence the query param.
 // The access log MUST NOT print the query string (see httpapi.requestLogger).
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.tokens.Verify(r.URL.Query().Get("access_token"))
+	token := r.URL.Query().Get("access_token")
+	principal, err := h.tokens.Verify(r.Context(), token)
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized) // RS11: auth before upgrade
+		if errors.Is(err, auth.ErrUnauthorized) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		} else {
+			http.Error(w, "auth unavailable", http.StatusServiceUnavailable)
+		}
 		return
 	}
+	userID := principal.UserID
 
 	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: h.opts.AllowedOrigins})
 	if err != nil {
 		return
 	}
-	ws.SetReadLimit(h.opts.MaxMessageBytes)
+	ws.SetReadLimit(h.opts.MaxFrameBytes)
 
 	c := newConn(ws, userID, h.opts.SendBuffer)
 	if err := h.hub.Register(c); err != nil {
@@ -93,16 +100,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.log.Debug("ws connected", "conn_id", c.ID, "user_id", userID)
 
 	go c.writeLoop(ctx, h.opts.PingInterval, h.opts.PongTimeout, 5*time.Second, func() {
+		if _, err := h.tokens.Verify(ctx, token); err != nil {
+			c.close(websocket.StatusPolicyViolation, "session expired or revoked")
+			return
+		}
 		_ = h.presence.Refresh(ctx, userID)
 	})
 
 	// Hint the client to run cursor sync right after (re)connect (RS15, RS4).
 	c.Enqueue(encode(FrameResync, "", nil))
 
-	h.readLoop(ctx, c)
+	h.readLoop(ctx, c, token)
 }
 
-func (h *Handler) readLoop(ctx context.Context, c *Conn) {
+func (h *Handler) readLoop(ctx context.Context, c *Conn, token string) {
 	for {
 		typ, data, err := c.ws.Read(ctx)
 		if err != nil {
@@ -110,6 +121,10 @@ func (h *Handler) readLoop(ctx context.Context, c *Conn) {
 		}
 		if typ != websocket.MessageText {
 			continue
+		}
+		if _, err := h.tokens.Verify(ctx, token); err != nil {
+			c.close(websocket.StatusPolicyViolation, "session expired or revoked")
+			return
 		}
 		var f Frame
 		if err := json.Unmarshal(data, &f); err != nil {
@@ -178,6 +193,8 @@ func (h *Handler) dispatch(ctx context.Context, c *Conn, f Frame) {
 
 func toErrorPayload(err error) ErrorPayload {
 	switch {
+	case errors.Is(err, domain.ErrConflict):
+		return ErrorPayload{Code: "idempotency_conflict", Message: "clientMessageId reused with different payload"}
 	case errors.Is(err, domain.ErrNotMember):
 		return ErrorPayload{Code: "forbidden", Message: "not a member"}
 	case errors.Is(err, domain.ErrNotFound):

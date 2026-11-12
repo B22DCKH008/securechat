@@ -111,4 +111,12 @@ func MessagesBefore(ctx context.Context, db DBTX, convID uuid.UUID, beforeSeq in
 	return collectMessages(rows)
 }
 
-// TODO(BE1, RS26/EXP6): add MessagesByOffset for the offset-vs-cursor benchmark only.
+// MatchesRetry uses PostgreSQL JSONB equality, so key order, whitespace and
+// numeric exponent formatting cannot turn an identical retry into a conflict.
+func MatchesRetry(ctx context.Context, db DBTX, id uuid.UUID, cmd domain.SendCommand) (bool, error) {
+	var match bool
+	err := db.QueryRow(ctx, `SELECT ciphertext=$2 AND protocol_meta=$3::jsonb
+		AND client_created_at IS NOT DISTINCT FROM $4::timestamptz
+		FROM messages WHERE id=$1`, id, cmd.Ciphertext, cmd.ProtocolMeta, cmd.ClientCreatedAt).Scan(&match)
+	return match, err
+}

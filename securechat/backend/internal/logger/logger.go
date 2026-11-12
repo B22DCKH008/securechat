@@ -18,6 +18,8 @@ var sensitiveKeys = map[string]struct{}{
 	"token": {}, "access_token": {}, "authorization": {}, "password": {},
 	"identity_key": {}, "private_key": {}, "prekey": {}, "signed_prekey": {},
 	"jwt_secret": {}, "secret": {},
+	"accesstoken": {}, "refreshtoken": {}, "refresh_token": {},
+	"password_hash": {}, "refresh_token_hash": {}, "privatekey": {},
 }
 
 const redacted = "[REDACTED]"

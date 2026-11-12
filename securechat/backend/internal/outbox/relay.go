@@ -1,14 +1,9 @@
-// Package outbox implements the polling outbox relay (KF1, KF2, KF3, KF8, KF15).
-//
-//	PostgreSQL outbox ──(poll, id order)──► Kafka (acks=all) ──► mark published_at
-//
-// Only one relay is active cluster-wide, enforced by a PostgreSQL session-level
-// advisory lock. Every instance runs the loop; non-leaders just wait.
-// Crash between broker ack and MarkPublished ⇒ re-publish ⇒ consumers dedupe (KF5).
+// Package outbox publishes committed events with at-least-once delivery.
 package outbox
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"math/rand/v2"
 	"time"
@@ -19,19 +14,17 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Publisher abstracts the broker so the relay can be unit-tested and so the
-// Redis Pub/Sub transport can be swapped in for EXP13 (KF16).
 type Publisher interface {
-	ProduceSync(ctx context.Context, rs ...*kgo.Record) kgo.ProduceResults
+	ProduceSync(context.Context, ...*kgo.Record) kgo.ProduceResults
 }
-
 type Config struct {
-	PollInterval time.Duration
-	BatchSize    int
-	LockID       int64
-	Retention    time.Duration
+	PollInterval      time.Duration
+	BatchSize         int
+	LockID            int64
+	Retention         time.Duration
+	PublishTimeout    time.Duration
+	HeartbeatInterval time.Duration
 }
-
 type Relay struct {
 	pool *pgxpool.Pool
 	pub  Publisher
@@ -40,140 +33,133 @@ type Relay struct {
 }
 
 func NewRelay(pool *pgxpool.Pool, pub Publisher, cfg Config, log *slog.Logger) *Relay {
-	return &Relay{pool: pool, pub: pub, cfg: cfg, log: log.With("component", "outbox-relay")}
+	if cfg.PublishTimeout <= 0 {
+		cfg.PublishTimeout = 10 * time.Second
+	}
+	if cfg.HeartbeatInterval <= 0 {
+		cfg.HeartbeatInterval = 250 * time.Millisecond
+	}
+	return &Relay{pool, pub, cfg, log.With("component", "outbox-relay")}
 }
-
-// Run blocks until ctx is cancelled.
 func (r *Relay) Run(ctx context.Context) {
 	for ctx.Err() == nil {
 		if err := r.leadAndRelay(ctx); err != nil && ctx.Err() == nil {
-			r.log.Warn("relay loop error", "err", err)
+			r.log.Warn("relay session ended")
 		}
-		sleep(ctx, 2*time.Second) // retry acquiring leadership
+		sleep(ctx, r.cfg.PollInterval)
 	}
 }
-
 func (r *Relay) leadAndRelay(ctx context.Context) error {
 	conn, err := r.pool.Acquire(ctx)
 	if err != nil {
 		return err
 	}
-	defer conn.Release()
-
-	var got bool
-	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, r.cfg.LockID).Scan(&got); err != nil {
+	// Never return a possibly session-locked connection to the pool.
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = conn.Hijack().Close(closeCtx)
+	}()
+	var locked bool
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, r.cfg.LockID).Scan(&locked); err != nil {
 		return err
 	}
-	if !got {
-		metrics.RelayLeader.Set(0)
+	if !locked {
 		return nil
 	}
-	r.log.Info("acquired relay leadership")
 	metrics.RelayLeader.Set(1)
-	defer func() {
-		metrics.RelayLeader.Set(0)
-		// Unlock on a fresh context: ctx may already be cancelled at shutdown.
-		uctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_, _ = conn.Exec(uctx, `SELECT pg_advisory_unlock($1)`, r.cfg.LockID)
-	}()
-
+	defer metrics.RelayLeader.Set(0)
+	r.log.Info("acquired relay leadership")
 	backoff := newBackoff(100*time.Millisecond, 10*time.Second)
-	purgeTicker := time.NewTicker(time.Minute)
-	defer purgeTicker.Stop()
-
+	lastPurge := time.Now()
 	for ctx.Err() == nil {
-		// Lock is tied to this session; if the connection died we lost leadership.
-		if err := conn.Ping(ctx); err != nil {
+		rows, err := store.FetchUnpublished(ctx, conn, r.cfg.BatchSize)
+		if err != nil {
 			return err
 		}
-		select {
-		case <-purgeTicker.C:
-			r.purge(ctx)
-		default:
+		if backlog, err := store.OutboxBacklog(ctx, conn); err == nil {
+			metrics.OutboxBacklog.Set(float64(backlog))
+		} else {
+			return err
 		}
-
-		n, err := r.relayOnce(ctx)
-		if err != nil {
-			metrics.OutboxPublishErrors.Inc()
-			d := backoff.next()
-			r.log.Warn("publish failed; backing off", "err", err, "backoff", d)
-			sleep(ctx, d)
+		if time.Since(lastPurge) >= time.Minute {
+			if _, err := store.PurgePublishedOutbox(ctx, conn, time.Now().Add(-r.cfg.Retention)); err != nil {
+				return err
+			}
+			lastPurge = time.Now()
+		}
+		if len(rows) == 0 {
+			sleep(ctx, r.cfg.PollInterval)
 			continue
 		}
-		backoff.reset()
-		if n == 0 {
-			sleep(ctx, r.cfg.PollInterval)
+		failed := false
+		// Sending a batch before observing failures can publish past a failed head.
+		for _, row := range rows {
+			record := &kgo.Record{Topic: row.Topic, Key: []byte(row.Key), Value: row.Payload,
+				Headers: []kgo.RecordHeader{{Key: "eventId", Value: []byte(row.EventID)}, {Key: "eventType", Value: []byte(row.EventType)}}}
+			if err := r.publishGuarded(ctx, conn, record); err != nil {
+				if ctx.Err() != nil || conn.Conn().IsClosed() {
+					return err
+				}
+				metrics.OutboxPublishErrors.Inc()
+				// Error categories only: raw broker errors may contain sensitive data.
+				if err := store.RecordOutboxFailure(ctx, conn, row.ID, "broker_publish_failed"); err != nil {
+					return err
+				}
+				r.log.Warn("broker publish failed; retrying pending head")
+				sleep(ctx, backoff.next())
+				failed = true
+				break
+			}
+			// Mark on the lock session. Session loss after broker ACK leaves a replay
+			// with the original eventId, never a false published marker.
+			now := time.Now().UTC()
+			if err := store.MarkPublished(ctx, conn, []int64{row.ID}, now); err != nil {
+				return err
+			}
+			metrics.OutboxPublished.Inc()
+			metrics.StageAcceptedToPublished.Observe(max(0, now.Sub(row.CreatedAt).Seconds()))
+		}
+		if !failed {
+			backoff.reset()
 		}
 	}
 	return ctx.Err()
 }
-
-// relayOnce publishes one batch. Only the contiguous successful prefix is marked,
-// so a failure never lets a later event overtake an earlier one in the outbox.
-func (r *Relay) relayOnce(ctx context.Context) (int, error) {
-	rows, err := store.FetchUnpublished(ctx, r.pool, r.cfg.BatchSize)
-	if err != nil {
-		return 0, err
-	}
-	if backlog, err := store.OutboxBacklog(ctx, r.pool); err == nil {
-		metrics.OutboxBacklog.Set(float64(backlog))
-	}
-	if len(rows) == 0 {
-		return 0, nil
-	}
-
-	recs := make([]*kgo.Record, len(rows))
-	for i, row := range rows {
-		recs[i] = &kgo.Record{
-			Topic: row.Topic,
-			Key:   []byte(row.Key),
-			Value: row.Payload,
-			Headers: []kgo.RecordHeader{
-				{Key: "eventId", Value: []byte(row.EventID)},
-				{Key: "eventType", Value: []byte(row.EventType)},
-			},
+func (r *Relay) publishGuarded(ctx context.Context, conn *pgxpool.Conn, record *kgo.Record) error {
+	op, cancel := context.WithTimeout(ctx, r.cfg.PublishTimeout)
+	defer cancel()
+	done := make(chan kgo.ProduceResults, 1)
+	go func() { done <- r.pub.ProduceSync(op, record) }()
+	ticker := time.NewTicker(r.cfg.HeartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case results := <-done:
+			if len(results) != 1 {
+				return errors.New("missing broker acknowledgement")
+			}
+			return results[0].Err
+		case <-ticker.C:
+			probe, stop := context.WithTimeout(op, r.cfg.HeartbeatInterval)
+			err := conn.Ping(probe)
+			stop()
+			if err != nil {
+				cancel()
+				<-done
+				return err
+			}
+		case <-op.Done():
+			cancel()
+			<-done
+			return op.Err()
 		}
 	}
-	results := r.pub.ProduceSync(ctx, recs...)
-
-	now := time.Now().UTC()
-	ok := make([]int64, 0, len(rows))
-	var firstErr error
-	for i, res := range results {
-		if res.Err != nil {
-			firstErr = res.Err
-			_ = store.RecordOutboxFailure(ctx, r.pool, rows[i].ID, res.Err.Error())
-			break
-		}
-		ok = append(ok, rows[i].ID)
-		metrics.StageAcceptedToPublished.Observe(now.Sub(rows[i].CreatedAt).Seconds())
-	}
-	if err := store.MarkPublished(ctx, r.pool, ok, now); err != nil {
-		return 0, err
-	}
-	metrics.OutboxPublished.Add(float64(len(ok)))
-	return len(ok), firstErr
 }
-
-func (r *Relay) purge(ctx context.Context) {
-	n, err := store.PurgePublishedOutbox(ctx, r.pool, time.Now().Add(-r.cfg.Retention))
-	if err != nil {
-		r.log.Warn("outbox purge failed", "err", err)
-		return
-	}
-	if n > 0 {
-		r.log.Info("outbox purged", "rows", n)
-	}
-}
-
-// --- helpers ---
 
 type backoff struct{ base, max, cur time.Duration }
 
 func newBackoff(base, max time.Duration) *backoff { return &backoff{base: base, max: max} }
-
-// next returns exponential backoff with full jitter (RS36).
 func (b *backoff) next() time.Duration {
 	if b.cur == 0 {
 		b.cur = b.base
@@ -182,14 +168,12 @@ func (b *backoff) next() time.Duration {
 	}
 	return time.Duration(rand.Int64N(int64(b.cur)) + 1)
 }
-
 func (b *backoff) reset() { b.cur = 0 }
-
 func sleep(ctx context.Context, d time.Duration) {
-	t := time.NewTimer(d)
-	defer t.Stop()
+	timer := time.NewTimer(d)
+	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-	case <-t.C:
+	case <-timer.C:
 	}
 }

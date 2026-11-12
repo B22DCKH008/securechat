@@ -1,0 +1,1093 @@
+{
+  "at": "2026-11-09T08:52:48.7403688Z",
+  "Go": "go1.27.3",
+  "OS": "windows/amd64",
+  "PostgreSQL": "PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "PayloadBytes": 256,
+  "PageSize": 50,
+  "Results": [
+    {
+      "kind": "plan_keyset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 0,
+      "latency": {
+        "samples": 0,
+        "p50Ms": 0,
+        "p95Ms": 0,
+        "p99Ms": 0
+      },
+      "operationsPerSecond": 0,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 56.86,
+            "Total Cost": 56.99,
+            "Plan Rows": 50,
+            "Plan Width": 345,
+            "Actual Startup Time": 0.112,
+            "Actual Total Time": 0.118,
+            "Actual Rows": 50,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 5,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Sort",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 56.86,
+                "Total Cost": 56.99,
+                "Plan Rows": 50,
+                "Plan Width": 345,
+                "Actual Startup Time": 0.111,
+                "Actual Total Time": 0.114,
+                "Actual Rows": 50,
+                "Actual Loops": 1,
+                "Sort Key": [
+                  "seq DESC"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 50,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 5,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Bitmap Heap Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "messages",
+                    "Alias": "messages",
+                    "Startup Cost": 4.79,
+                    "Total Cost": 55.45,
+                    "Plan Rows": 50,
+                    "Plan Width": 345,
+                    "Actual Startup Time": 0.029,
+                    "Actual Total Time": 0.042,
+                    "Actual Rows": 50,
+                    "Actual Loops": 1,
+                    "Recheck Cond": "((conversation_id = 'cc17fe32-5667-41f7-bc61-ad2cfe052ea6'::uuid) AND (seq \u003c '51'::bigint))",
+                    "Rows Removed by Index Recheck": 0,
+                    "Exact Heap Blocks": 3,
+                    "Lossy Heap Blocks": 0,
+                    "Shared Hit Blocks": 5,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0,
+                    "Plans": [
+                      {
+                        "Node Type": "Bitmap Index Scan",
+                        "Parent Relationship": "Outer",
+                        "Parallel Aware": false,
+                        "Async Capable": false,
+                        "Index Name": "uq_messages_conv_seq",
+                        "Startup Cost": 0.00,
+                        "Total Cost": 4.78,
+                        "Plan Rows": 50,
+                        "Plan Width": 0,
+                        "Actual Startup Time": 0.019,
+                        "Actual Total Time": 0.019,
+                        "Actual Rows": 50,
+                        "Actual Loops": 1,
+                        "Index Cond": "((conversation_id = 'cc17fe32-5667-41f7-bc61-ad2cfe052ea6'::uuid) AND (seq \u003c '51'::bigint))",
+                        "Shared Hit Blocks": 2,
+                        "Shared Read Blocks": 0,
+                        "Shared Dirtied Blocks": 0,
+                        "Shared Written Blocks": 0,
+                        "Local Hit Blocks": 0,
+                        "Local Read Blocks": 0,
+                        "Local Dirtied Blocks": 0,
+                        "Local Written Blocks": 0,
+                        "Temp Read Blocks": 0,
+                        "Temp Written Blocks": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 57,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.828,
+          "Triggers": [],
+          "Execution Time": 0.194
+        }
+      ]
+    },
+    {
+      "kind": "plan_offset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 0,
+      "latency": {
+        "samples": 0,
+        "p50Ms": 0,
+        "p95Ms": 0,
+        "p99Ms": 0
+      },
+      "operationsPerSecond": 0,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 112.70,
+            "Total Cost": 112.83,
+            "Plan Rows": 50,
+            "Plan Width": 345,
+            "Actual Startup Time": 1.042,
+            "Actual Total Time": 1.055,
+            "Actual Rows": 50,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 48,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Sort",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 110.33,
+                "Total Cost": 112.83,
+                "Plan Rows": 1000,
+                "Plan Width": 345,
+                "Actual Startup Time": 0.907,
+                "Actual Total Time": 1.021,
+                "Actual Rows": 1000,
+                "Actual Loops": 1,
+                "Sort Key": [
+                  "seq DESC"
+                ],
+                "Sort Method": "quicksort",
+                "Sort Space Used": 532,
+                "Sort Space Type": "Memory",
+                "Shared Hit Blocks": 48,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "messages",
+                    "Alias": "messages",
+                    "Startup Cost": 0.00,
+                    "Total Cost": 60.50,
+                    "Plan Rows": 1000,
+                    "Plan Width": 345,
+                    "Actual Startup Time": 0.012,
+                    "Actual Total Time": 0.314,
+                    "Actual Rows": 1000,
+                    "Actual Loops": 1,
+                    "Filter": "(conversation_id = 'cc17fe32-5667-41f7-bc61-ad2cfe052ea6'::uuid)",
+                    "Rows Removed by Filter": 0,
+                    "Shared Hit Blocks": 48,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 0,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.106,
+          "Triggers": [],
+          "Execution Time": 1.164
+        }
+      ]
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 2.491,
+        "p95Ms": 5.498,
+        "p99Ms": 7.302
+      },
+      "operationsPerSecond": 319.8577272829046
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 2.165,
+        "p95Ms": 7.162,
+        "p99Ms": 12.421
+      },
+      "operationsPerSecond": 349.87005826036216
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.123,
+        "p95Ms": 2.684,
+        "p99Ms": 6.203
+      },
+      "operationsPerSecond": 671.185535146295
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.124,
+        "p95Ms": 2.379,
+        "p99Ms": 2.687
+      },
+      "operationsPerSecond": 754.0784332059945
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.067,
+        "p95Ms": 2.377,
+        "p99Ms": 5.279
+      },
+      "operationsPerSecond": 700.6500631285707
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.849,
+        "p95Ms": 6.086,
+        "p99Ms": 7.976
+      },
+      "operationsPerSecond": 401.1595114519006
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "offset": 500,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.62,
+        "p95Ms": 7.92,
+        "p99Ms": 12.39
+      },
+      "operationsPerSecond": 377.4737268849245
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "offset": 500,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.348,
+        "p95Ms": 2.367,
+        "p99Ms": 5.233
+      },
+      "operationsPerSecond": 631.5707037087095
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "offset": 500,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.603,
+        "p95Ms": 3.53,
+        "p99Ms": 4.523
+      },
+      "operationsPerSecond": 547.4613396488473
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "offset": 500,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.523,
+        "p95Ms": 3.563,
+        "p99Ms": 5.623
+      },
+      "operationsPerSecond": 547.1719690366326
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "offset": 500,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.638,
+        "p95Ms": 9.416,
+        "p99Ms": 17.337
+      },
+      "operationsPerSecond": 334.8799204325309
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "offset": 500,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.601,
+        "p95Ms": 6.506,
+        "p99Ms": 8.846
+      },
+      "operationsPerSecond": 424.20928449892614
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.136,
+        "p95Ms": 2.7,
+        "p99Ms": 3.887
+      },
+      "operationsPerSecond": 679.7856228059919
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 2.095,
+        "p95Ms": 8.6,
+        "p99Ms": 14.23
+      },
+      "operationsPerSecond": 317.9009382528292
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.599,
+        "p95Ms": 5.061,
+        "p99Ms": 6.423
+      },
+      "operationsPerSecond": 479.7417070649162
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.301,
+        "p95Ms": 3.326,
+        "p99Ms": 5.031
+      },
+      "operationsPerSecond": 656.9408759781029
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.32,
+        "p95Ms": 2.119,
+        "p99Ms": 3.483
+      },
+      "operationsPerSecond": 707.0585656609937
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 1000,
+      "offset": 950,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.196,
+        "p95Ms": 2.712,
+        "p99Ms": 3.644
+      },
+      "operationsPerSecond": 659.4548682277282
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 1000,
+      "workers": 1,
+      "round": 1,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 10.926,
+        "p95Ms": 19.74,
+        "p99Ms": 27.696
+      },
+      "operationsPerSecond": 83.50829016024322
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 1000,
+      "workers": 1,
+      "round": 2,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 11.31,
+        "p95Ms": 38.92,
+        "p99Ms": 72.342
+      },
+      "operationsPerSecond": 66.1311126682049
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 1000,
+      "workers": 1,
+      "round": 3,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 10.369,
+        "p95Ms": 28.56,
+        "p99Ms": 39.217
+      },
+      "operationsPerSecond": 80.99657866401894
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 1000,
+      "workers": 4,
+      "round": 1,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 24.39,
+        "p95Ms": 53.479,
+        "p99Ms": 84.856
+      },
+      "operationsPerSecond": 140.0278109235275
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 1000,
+      "workers": 4,
+      "round": 2,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 23.209,
+        "p95Ms": 61.12,
+        "p99Ms": 77.769
+      },
+      "operationsPerSecond": 142.74083966014263
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 1000,
+      "workers": 4,
+      "round": 3,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 21.238,
+        "p95Ms": 43.584,
+        "p99Ms": 57.547
+      },
+      "operationsPerSecond": 163.18231625875168
+    },
+    {
+      "kind": "plan_keyset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 0,
+      "latency": {
+        "samples": 0,
+        "p50Ms": 0,
+        "p95Ms": 0,
+        "p99Ms": 0
+      },
+      "operationsPerSecond": 0,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 0.29,
+            "Total Cost": 92.66,
+            "Plan Rows": 50,
+            "Plan Width": 346,
+            "Actual Startup Time": 0.016,
+            "Actual Total Time": 0.025,
+            "Actual Rows": 50,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 5,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0,
+            "Plans": [
+              {
+                "Node Type": "Index Scan",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Scan Direction": "Backward",
+                "Index Name": "uq_messages_conv_seq",
+                "Relation Name": "messages",
+                "Alias": "messages",
+                "Startup Cost": 0.29,
+                "Total Cost": 92.66,
+                "Plan Rows": 50,
+                "Plan Width": 346,
+                "Actual Startup Time": 0.015,
+                "Actual Total Time": 0.022,
+                "Actual Rows": 50,
+                "Actual Loops": 1,
+                "Index Cond": "((conversation_id = 'b15d951b-3b6e-42d2-b405-95a5f10430f0'::uuid) AND (seq \u003c '51'::bigint))",
+                "Rows Removed by Index Recheck": 0,
+                "Shared Hit Blocks": 5,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 0,
+                "Temp Written Blocks": 0
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 57,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.360,
+          "Triggers": [],
+          "Execution Time": 0.042
+        }
+      ]
+    },
+    {
+      "kind": "plan_offset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 0,
+      "latency": {
+        "samples": 0,
+        "p50Ms": 0,
+        "p95Ms": 0,
+        "p99Ms": 0
+      },
+      "operationsPerSecond": 0,
+      "plan": [
+        {
+          "Plan": {
+            "Node Type": "Limit",
+            "Parallel Aware": false,
+            "Async Capable": false,
+            "Startup Cost": 1291.26,
+            "Total Cost": 1291.39,
+            "Plan Rows": 50,
+            "Plan Width": 346,
+            "Actual Startup Time": 25.836,
+            "Actual Total Time": 25.914,
+            "Actual Rows": 50,
+            "Actual Loops": 1,
+            "Shared Hit Blocks": 477,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 453,
+            "Temp Written Blocks": 454,
+            "Plans": [
+              {
+                "Node Type": "Sort",
+                "Parent Relationship": "Outer",
+                "Parallel Aware": false,
+                "Async Capable": false,
+                "Startup Cost": 1266.39,
+                "Total Cost": 1291.39,
+                "Plan Rows": 10000,
+                "Plan Width": 346,
+                "Actual Startup Time": 24.585,
+                "Actual Total Time": 25.685,
+                "Actual Rows": 10000,
+                "Actual Loops": 1,
+                "Sort Key": [
+                  "seq DESC"
+                ],
+                "Sort Method": "external merge",
+                "Sort Space Used": 3624,
+                "Sort Space Type": "Disk",
+                "Shared Hit Blocks": 477,
+                "Shared Read Blocks": 0,
+                "Shared Dirtied Blocks": 0,
+                "Shared Written Blocks": 0,
+                "Local Hit Blocks": 0,
+                "Local Read Blocks": 0,
+                "Local Dirtied Blocks": 0,
+                "Local Written Blocks": 0,
+                "Temp Read Blocks": 453,
+                "Temp Written Blocks": 454,
+                "Plans": [
+                  {
+                    "Node Type": "Seq Scan",
+                    "Parent Relationship": "Outer",
+                    "Parallel Aware": false,
+                    "Async Capable": false,
+                    "Relation Name": "messages",
+                    "Alias": "messages",
+                    "Startup Cost": 0.00,
+                    "Total Cost": 602.00,
+                    "Plan Rows": 10000,
+                    "Plan Width": 346,
+                    "Actual Startup Time": 0.006,
+                    "Actual Total Time": 2.188,
+                    "Actual Rows": 10000,
+                    "Actual Loops": 1,
+                    "Filter": "(conversation_id = 'b15d951b-3b6e-42d2-b405-95a5f10430f0'::uuid)",
+                    "Rows Removed by Filter": 0,
+                    "Shared Hit Blocks": 477,
+                    "Shared Read Blocks": 0,
+                    "Shared Dirtied Blocks": 0,
+                    "Shared Written Blocks": 0,
+                    "Local Hit Blocks": 0,
+                    "Local Read Blocks": 0,
+                    "Local Dirtied Blocks": 0,
+                    "Local Written Blocks": 0,
+                    "Temp Read Blocks": 0,
+                    "Temp Written Blocks": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "Planning": {
+            "Shared Hit Blocks": 0,
+            "Shared Read Blocks": 0,
+            "Shared Dirtied Blocks": 0,
+            "Shared Written Blocks": 0,
+            "Local Hit Blocks": 0,
+            "Local Read Blocks": 0,
+            "Local Dirtied Blocks": 0,
+            "Local Written Blocks": 0,
+            "Temp Read Blocks": 0,
+            "Temp Written Blocks": 0
+          },
+          "Planning Time": 0.061,
+          "Triggers": [],
+          "Execution Time": 26.349
+        }
+      ]
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.038,
+        "p95Ms": 2.599,
+        "p99Ms": 3.907
+      },
+      "operationsPerSecond": 851.6429469911881
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.241,
+        "p95Ms": 6.008,
+        "p99Ms": 10.342
+      },
+      "operationsPerSecond": 500.4371318346575
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.071,
+        "p95Ms": 2.309,
+        "p99Ms": 4.563
+      },
+      "operationsPerSecond": 789.1725525786213
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.053,
+        "p95Ms": 2.398,
+        "p99Ms": 3.317
+      },
+      "operationsPerSecond": 792.98871101271
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.455,
+        "p95Ms": 4.232,
+        "p99Ms": 6.983
+      },
+      "operationsPerSecond": 552.9679726479922
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.169,
+        "p95Ms": 2.234,
+        "p99Ms": 3.032
+      },
+      "operationsPerSecond": 750.4988941398796
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "offset": 5000,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.056,
+        "p95Ms": 2.198,
+        "p99Ms": 4.137
+      },
+      "operationsPerSecond": 755.2756000664643
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "offset": 5000,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 2.632,
+        "p95Ms": 5.697,
+        "p99Ms": 7.803
+      },
+      "operationsPerSecond": 331.2438471455393
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "offset": 5000,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.612,
+        "p95Ms": 3.949,
+        "p99Ms": 5.148
+      },
+      "operationsPerSecond": 468.38604940255016
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "offset": 5000,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.163,
+        "p95Ms": 2.985,
+        "p99Ms": 3.476
+      },
+      "operationsPerSecond": 669.6712583792616
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "offset": 5000,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.179,
+        "p95Ms": 3.395,
+        "p99Ms": 5.348
+      },
+      "operationsPerSecond": 659.9976108086489
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "offset": 5000,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.607,
+        "p95Ms": 2.859,
+        "p99Ms": 4.421
+      },
+      "operationsPerSecond": 546.658386614304
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.038,
+        "p95Ms": 1.601,
+        "p99Ms": 2.277
+      },
+      "operationsPerSecond": 1042.057438205994
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 1,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 3.386,
+        "p95Ms": 7.912,
+        "p99Ms": 13.734
+      },
+      "operationsPerSecond": 248.54223764067802
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 3.749,
+        "p95Ms": 8.771,
+        "p99Ms": 9.348
+      },
+      "operationsPerSecond": 237.7994043124922
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 2,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.046,
+        "p95Ms": 1.76,
+        "p99Ms": 2.654
+      },
+      "operationsPerSecond": 950.2975381591976
+    },
+    {
+      "kind": "keyset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 1.055,
+        "p95Ms": 2.206,
+        "p99Ms": 4.529
+      },
+      "operationsPerSecond": 763.0646201273555
+    },
+    {
+      "kind": "offset",
+      "seedMessages": 10000,
+      "offset": 9950,
+      "round": 3,
+      "latency": {
+        "samples": 100,
+        "p50Ms": 3.351,
+        "p95Ms": 9.694,
+        "p99Ms": 21.824
+      },
+      "operationsPerSecond": 217.6680266564972
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 10000,
+      "workers": 1,
+      "round": 1,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 9.55,
+        "p95Ms": 18.059,
+        "p99Ms": 39.478
+      },
+      "operationsPerSecond": 92.49303411836796
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 10000,
+      "workers": 1,
+      "round": 2,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 9.135,
+        "p95Ms": 14.42,
+        "p99Ms": 20.556
+      },
+      "operationsPerSecond": 103.22771916135116
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 10000,
+      "workers": 1,
+      "round": 3,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 9.141,
+        "p95Ms": 14.918,
+        "p99Ms": 19.703
+      },
+      "operationsPerSecond": 99.30266195184248
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 10000,
+      "workers": 4,
+      "round": 1,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 26.868,
+        "p95Ms": 65.315,
+        "p99Ms": 94.044
+      },
+      "operationsPerSecond": 128.97256456914715
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 10000,
+      "workers": 4,
+      "round": 2,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 19.878,
+        "p95Ms": 42.328,
+        "p99Ms": 54.218
+      },
+      "operationsPerSecond": 175.54202770176076
+    },
+    {
+      "kind": "send_hot_conversation",
+      "seedMessages": 10000,
+      "workers": 4,
+      "round": 3,
+      "latency": {
+        "samples": 200,
+        "p50Ms": 27.761,
+        "p95Ms": 104.392,
+        "p99Ms": 118.528
+      },
+      "operationsPerSecond": 103.36634733873261
+    }
+  ],
+  "verified": true,
+  "notes": "Local DB/service only; seeded rows bypass send/outbox; measured sends use the real service. No Kafka, HTTP, Signal or system-capacity claim.",
+  "sourceSHA256": "07e177509d6da99c538ef6cebfa534aaedee76cd5b7aa4b28b988a9ebecc6126"
+}
