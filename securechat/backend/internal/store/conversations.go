@@ -88,3 +88,13 @@ func IsMember(ctx context.Context, db DBTX, convID, userID uuid.UUID) (bool, err
 	}
 	return ok, err
 }
+
+// LockMember prevents deletion of the membership during a protected write.
+func LockMember(ctx context.Context, tx pgx.Tx, convID, userID uuid.UUID) error {
+	var id uuid.UUID
+	err := tx.QueryRow(ctx, `SELECT user_id FROM conversation_members WHERE conversation_id=$1 AND user_id=$2 FOR SHARE`, convID, userID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.ErrNotMember
+	}
+	return err
+}

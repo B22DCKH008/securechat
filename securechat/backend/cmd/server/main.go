@@ -73,18 +73,22 @@ func run(cfg config.Config, log *slog.Logger) error {
 
 	// --- services ---
 	issuer := auth.NewIssuer(cfg.JWTSecret, cfg.JWTTTL)
+	authSvc, err := auth.NewService(pool, issuer, cfg.DevLoginEnabled)
+	if err != nil {
+		return err
+	}
 	msgSvc := messaging.New(pool, messaging.Topics{Messages: cfg.KafkaTopicMessages, Receipts: cfg.KafkaTopicReceipts}, int(cfg.WSMaxMessageBytes))
 	keySvc := keys.New(pool)
 	limiter := ratelimit.New(rdb, cfg.RateLimitPerSecond, log)
 	registry := presence.NewRegistry(rdb, cfg.InstanceID, cfg.PresenceTTL)
 
 	hub := gateway.NewHub(cfg.WSMaxConnsPerUser)
-	wsHandler := gateway.NewHandler(hub, msgSvc, registry, limiter, issuer, gateway.Options{
-		AllowedOrigins:  cfg.WSAllowedOrigins,
-		PingInterval:    cfg.WSPingInterval,
-		PongTimeout:     cfg.WSPongTimeout,
-		SendBuffer:      cfg.WSSendBuffer,
-		MaxMessageBytes: cfg.WSMaxMessageBytes,
+	wsHandler := gateway.NewHandler(hub, msgSvc, registry, limiter, authSvc, gateway.Options{
+		AllowedOrigins: cfg.WSAllowedOrigins,
+		PingInterval:   cfg.WSPingInterval,
+		PongTimeout:    cfg.WSPongTimeout,
+		SendBuffer:     cfg.WSSendBuffer,
+		MaxFrameBytes:  cfg.WSMaxFrameBytes,
 	}, log)
 
 	var devLogin func(context.Context, string) (uuid.UUID, error)
@@ -97,7 +101,7 @@ func run(cfg config.Config, log *slog.Logger) error {
 	}
 
 	router := httpapi.NewRouter(httpapi.Deps{
-		Messaging: msgSvc, Keys: keySvc, Auth: issuer, Limiter: limiter, WS: wsHandler,
+		Messaging: msgSvc, Keys: keySvc, Auth: authSvc, Limiter: limiter, WS: wsHandler,
 		DevLogin: devLogin, Log: log, InstanceID: cfg.InstanceID,
 		Ready: func(ctx context.Context) error { return pool.Ping(ctx) }, // Kafka/Redis are not required for readiness (KF8)
 	})

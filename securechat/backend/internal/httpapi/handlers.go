@@ -74,7 +74,17 @@ func (a *api) history(w http.ResponseWriter, r *http.Request) {
 		writeError(w, a.Log, err)
 		return
 	}
-	msgs, err := a.Messaging.History(r.Context(), uid, convID, queryInt(r, "before_seq", 0), int(queryInt(r, "limit", 50)))
+	before, err := queryInt(r, "before_seq", 0)
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	limit, err := queryInt(r, "limit", 50)
+	if err != nil || limit < 1 || limit > 200 || before < 0 {
+		writeError(w, a.Log, domain.ErrInvalidInput)
+		return
+	}
+	msgs, err := a.Messaging.History(r.Context(), uid, convID, before, int(limit))
 	if err != nil {
 		writeError(w, a.Log, err)
 		return
@@ -151,14 +161,15 @@ func (a *api) receipt(w http.ResponseWriter, r *http.Request) {
 func (a *api) sync(w http.ResponseWriter, r *http.Request) {
 	uid, _ := auth.UserID(r.Context())
 	var req struct {
-		Cursors map[uuid.UUID]int64 `json:"cursors"`
-		Limit   int                 `json:"limit"`
+		Cursors        map[uuid.UUID]int64 `json:"cursors"`
+		ReceiptCursors map[uuid.UUID]int64 `json:"receiptCursors"`
+		Limit          int                 `json:"limit"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, a.Log, err)
 		return
 	}
-	res, err := a.Messaging.Sync(r.Context(), uid, req.Cursors, req.Limit)
+	res, err := a.Messaging.SyncWithReceipts(r.Context(), uid, req.Cursors, req.ReceiptCursors, req.Limit)
 	if err != nil {
 		writeError(w, a.Log, err)
 		return
@@ -173,6 +184,11 @@ func (a *api) uploadKeys(w http.ResponseWriter, r *http.Request) {
 	var req keys.UploadRequest
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, a.Log, err)
+		return
+	}
+	principal, _ := auth.FromContext(r.Context())
+	if principal.DeviceID > 0 && principal.DeviceID != req.DeviceID {
+		writeError(w, a.Log, domain.ErrNotMember)
 		return
 	}
 	if err := a.Keys.Upload(r.Context(), uid, req); err != nil {

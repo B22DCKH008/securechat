@@ -46,6 +46,7 @@ export interface MessageEvent {
 }
 
 export interface ReceiptEvent {
+  receiptSeq?: number;         // additive durable receipt cursor (new servers)
   messageId: string;
   conversationId: string;
   seq: number;

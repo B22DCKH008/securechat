@@ -1,0 +1,146 @@
+{
+  "date": "2026-11-09",
+  "toolchain": "go1.27.3 linux/amd64",
+  "command": "docker compose -p securechat-be1 -f docker-compose.yml -f compose.test.yml run --rm be1-test",
+  "exitCode": 0,
+  "sourceSHA256": "07e177509d6da99c538ef6cebfa534aaedee76cd5b7aa4b28b988a9ebecc6126",
+  "passed": 33,
+  "integrationPassed": 19,
+  "failed": 0,
+  "skipped": 0,
+  "raceWarnings": false,
+  "cases": [
+    {
+      "name": "TestIssueVerify",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestVerifyRejectsWrongSecretAndExpired",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestRejectUnsafeAuthAndRelayConfiguration",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestDedupe",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestRouterPushesOnceDespiteDuplicateEvent",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestRouterPoisonIsPermanent",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestEnvelopeRoundTrip",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestDecodeRejectsMissingID",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestDecodeIgnoresUnknownFields",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestHubConnectionLimit",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestPushOnlyToTargetUser",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestDecodeRejectsUnknownTrailingAndOversizedJSON",
+      "seconds": 0.03
+    },
+    {
+      "name": "TestCursorQueryRejectsMalformedAndRepeatedValues",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestRedactsSensitiveFields",
+      "seconds": 0.0
+    },
+    {
+      "name": "TestRetryJSONBNumbersAndTimestampPrecision",
+      "seconds": 1.18
+    },
+    {
+      "name": "TestMessagePageByteBudgetAndInputBounds",
+      "seconds": 1.44
+    },
+    {
+      "name": "TestPasswordlessAccountAndKeyDeviceScope",
+      "seconds": 15.69
+    },
+    {
+      "name": "TestIdempotentRetryCreatesOneMessage",
+      "seconds": 0.57
+    },
+    {
+      "name": "TestSeqIsGaplessUnderConcurrentWriters",
+      "seconds": 0.83
+    },
+    {
+      "name": "TestSendAndReceiptRollback",
+      "seconds": 0.49
+    },
+    {
+      "name": "TestOfflineRecipientSyncsAfterReconnect",
+      "seconds": 0.53
+    },
+    {
+      "name": "TestReceiptsMonotonicAndLateSync",
+      "seconds": 0.66
+    },
+    {
+      "name": "TestNonMemberCannotReadOrSend",
+      "seconds": 0.43
+    },
+    {
+      "name": "TestReceiptMigrationBackfillsExistingState",
+      "seconds": 0.38
+    },
+    {
+      "name": "TestAuthRotationLogoutAndRevocation",
+      "seconds": 19.61
+    },
+    {
+      "name": "TestRefreshConcurrencyRevokesFamily",
+      "seconds": 8.13
+    },
+    {
+      "name": "TestHTTPContractsAndSessionWebSocket",
+      "seconds": 11.88
+    },
+    {
+      "name": "TestRelayCrashBetweenPublishAndMarkIsDeduped",
+      "seconds": 0.47
+    },
+    {
+      "name": "TestRelayRetryAndLeadership",
+      "seconds": 0.51
+    },
+    {
+      "name": "TestCrossInstanceDelivery",
+      "seconds": 20.1
+    },
+    {
+      "name": "TestRelaySeesLateCommittedOutbox",
+      "seconds": 0.48
+    },
+    {
+      "name": "TestRelayLockLossCancelsPublish",
+      "seconds": 0.56
+    },
+    {
+      "name": "TestKafkaOutageBacklogDrains",
+      "seconds": 1.56
+    }
+  ]
+}

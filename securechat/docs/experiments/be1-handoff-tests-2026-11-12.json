@@ -1,0 +1,369 @@
+{
+  "date": "2026-11-12",
+  "timezone": "Asia/Bangkok",
+  "sourceSHA256": "3dc78b4cff6f550147f21428b113eef3fc10bc74be2e5ef49a25343ee60b81ff",
+  "scope": "BE1 handoff fixes; BE2 DLQ/offset P1 remains open; no Signal/client AI/system-load certification",
+  "host": {
+    "command": "go test -count=1 -json ./...",
+    "toolchain": "go1.27.3 windows/amd64",
+    "exitCode": 0,
+    "topLevelPassed": 17,
+    "integrationPassed": 0,
+    "failed": 0,
+    "skippedTests": 0,
+    "raceWarnings": false,
+    "packages": [
+      {
+        "package": "github.com/securechat/backend/internal/auth",
+        "seconds": 1.8010000000000002
+      },
+      {
+        "package": "github.com/securechat/backend/internal/config",
+        "seconds": 1.307
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "seconds": 0.397
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "seconds": 1.65
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "seconds": 0.324
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "seconds": 0.42
+      },
+      {
+        "package": "github.com/securechat/backend/internal/logger",
+        "seconds": 1.517
+      }
+    ],
+    "cases": [
+      {
+        "package": "github.com/securechat/backend/internal/auth",
+        "name": "TestIssueVerify",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/auth",
+        "name": "TestVerifyRejectsWrongSecretAndExpired",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/config",
+        "name": "TestWebSocketBudgetConfiguration",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/config",
+        "name": "TestRejectUnsafeAuthAndRelayConfiguration",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "name": "TestDedupe",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "name": "TestRouterPushesOnceDespiteDuplicateEvent",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "name": "TestRouterPoisonIsPermanent",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "name": "TestEnvelopeRoundTrip",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "name": "TestDecodeRejectsMissingID",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "name": "TestDecodeIgnoresUnknownFields",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "name": "TestWebSocketCiphertextAndFrameBudgets",
+        "seconds": 0.01
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "name": "TestHubConnectionLimit",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "name": "TestPushOnlyToTargetUser",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "name": "TestDecodeRejectsUnknownTrailingAndOversizedJSON",
+        "seconds": 0.01
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "name": "TestCursorQueryRejectsMalformedAndRepeatedValues",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "name": "TestAccessLogOmitsClientPathQueryAndBody",
+        "seconds": 0.02
+      },
+      {
+        "package": "github.com/securechat/backend/internal/logger",
+        "name": "TestRedactsSensitiveFields",
+        "seconds": 0
+      }
+    ]
+  },
+  "linuxRace": {
+    "command": "docker compose -p securechat-be1 -f docker-compose.yml -f compose.test.yml run --rm -T be1-test go test -race -count=1 -tags=integration -timeout=180s -json ./...",
+    "toolchain": "go1.27.3 linux/amd64",
+    "exitCode": 0,
+    "topLevelPassed": 37,
+    "integrationPassed": 20,
+    "failed": 0,
+    "skippedTests": 0,
+    "raceWarnings": false,
+    "packages": [
+      {
+        "package": "github.com/securechat/backend/internal/auth",
+        "seconds": 1.403
+      },
+      {
+        "package": "github.com/securechat/backend/internal/config",
+        "seconds": 1.164
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "seconds": 1.153
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "seconds": 1.058
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "seconds": 1.183
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "seconds": 1.11
+      },
+      {
+        "package": "github.com/securechat/backend/internal/logger",
+        "seconds": 1.034
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "seconds": 138.446
+      }
+    ],
+    "cases": [
+      {
+        "package": "github.com/securechat/backend/internal/auth",
+        "name": "TestIssueVerify",
+        "seconds": 0.01
+      },
+      {
+        "package": "github.com/securechat/backend/internal/auth",
+        "name": "TestVerifyRejectsWrongSecretAndExpired",
+        "seconds": 0.01
+      },
+      {
+        "package": "github.com/securechat/backend/internal/config",
+        "name": "TestWebSocketBudgetConfiguration",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/config",
+        "name": "TestRejectUnsafeAuthAndRelayConfiguration",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "name": "TestDedupe",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "name": "TestRouterPushesOnceDespiteDuplicateEvent",
+        "seconds": 0.01
+      },
+      {
+        "package": "github.com/securechat/backend/internal/delivery",
+        "name": "TestRouterPoisonIsPermanent",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "name": "TestEnvelopeRoundTrip",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "name": "TestDecodeRejectsMissingID",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/events",
+        "name": "TestDecodeIgnoresUnknownFields",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "name": "TestWebSocketCiphertextAndFrameBudgets",
+        "seconds": 0.13
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "name": "TestHubConnectionLimit",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/gateway",
+        "name": "TestPushOnlyToTargetUser",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "name": "TestDecodeRejectsUnknownTrailingAndOversizedJSON",
+        "seconds": 0.04
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "name": "TestCursorQueryRejectsMalformedAndRepeatedValues",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/internal/httpapi",
+        "name": "TestAccessLogOmitsClientPathQueryAndBody",
+        "seconds": 0.01
+      },
+      {
+        "package": "github.com/securechat/backend/internal/logger",
+        "name": "TestRedactsSensitiveFields",
+        "seconds": 0
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestWebSocketLargeCiphertextPersistsAndRetriesOverREST",
+        "seconds": 10.96
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestRetryJSONBNumbersAndTimestampPrecision",
+        "seconds": 0.5
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestMessagePageByteBudgetAndInputBounds",
+        "seconds": 0.93
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestPasswordlessAccountAndKeyDeviceScope",
+        "seconds": 28.45
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestIdempotentRetryCreatesOneMessage",
+        "seconds": 0.8
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestSeqIsGaplessUnderConcurrentWriters",
+        "seconds": 0.97
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestSendAndReceiptRollback",
+        "seconds": 0.52
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestOfflineRecipientSyncsAfterReconnect",
+        "seconds": 0.69
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestReceiptsMonotonicAndLateSync",
+        "seconds": 0.65
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestNonMemberCannotReadOrSend",
+        "seconds": 0.49
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestReceiptMigrationBackfillsExistingState",
+        "seconds": 0.69
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestAuthRotationLogoutAndRevocation",
+        "seconds": 30.63
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestRefreshConcurrencyRevokesFamily",
+        "seconds": 11.58
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestHTTPContractsAndSessionWebSocket",
+        "seconds": 17.86
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestRelayCrashBetweenPublishAndMarkIsDeduped",
+        "seconds": 0.93
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestRelayRetryAndLeadership",
+        "seconds": 0.66
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestCrossInstanceDelivery",
+        "seconds": 26.03
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestRelaySeesLateCommittedOutbox",
+        "seconds": 0.85
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestRelayLockLossCancelsPublish",
+        "seconds": 0.8
+      },
+      {
+        "package": "github.com/securechat/backend/tests/integration",
+        "name": "TestKafkaOutageBacklogDrains",
+        "seconds": 2.22
+      }
+    ]
+  },
+  "otherChecks": {
+    "goVet": "PASS",
+    "goModVerify": "PASS",
+    "openAPIValidation": "PASS"
+  }
+}

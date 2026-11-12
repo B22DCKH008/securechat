@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,7 +28,7 @@ type Limiter interface {
 type Deps struct {
 	Messaging  *messaging.Service
 	Keys       *keys.Service
-	Auth       *auth.Issuer
+	Auth       *auth.Service
 	Limiter    Limiter
 	WS         http.Handler
 	DevLogin   func(ctx context.Context, username string) (uuid.UUID, error) // nil = disabled
@@ -52,6 +53,10 @@ func NewRouter(d Deps) http.Handler {
 	if d.DevLogin != nil {
 		mux.HandleFunc("POST /v1/auth/dev-login", a.devLogin)
 	}
+	mux.Handle("POST /v1/auth/register", a.authLimit(http.HandlerFunc(a.register)))
+	mux.Handle("POST /v1/auth/login", a.authLimit(http.HandlerFunc(a.login)))
+	mux.Handle("POST /v1/auth/refresh", a.authLimit(http.HandlerFunc(a.refresh)))
+	mux.Handle("POST /v1/auth/logout", d.Auth.Middleware(http.HandlerFunc(a.logout)))
 
 	authed := func(h http.HandlerFunc) http.Handler { return d.Auth.Middleware(a.rateLimit(h)) }
 	mux.Handle("GET /v1/conversations", authed(a.listConversations))
@@ -88,17 +93,24 @@ func (a *api) rateLimit(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// requestLogger logs method + PATH ONLY. Never the query string (contains WS token)
-// nor bodies (contain ciphertext) – INF3/SC7.
+// requestLogger logs registered method-specific route templates, never raw paths,
+// query strings (WS token), or request bodies (INF3/SC7).
 func requestLogger(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
-		if r.URL.Path == "/metrics" || r.URL.Path == "/healthz" {
+		path := "unmatched"
+		method, template, ok := strings.Cut(r.Pattern, " ")
+		if ok && (method == r.Method || method == http.MethodGet && r.Method == http.MethodHead) {
+			path = template
+		}
+		// Methodless patterns and CONNECT redirect patterns are not trusted route
+		// templates: net/http may put a client-controlled redirect path in Pattern.
+		if path == "/metrics" || path == "/healthz" {
 			return
 		}
-		log.Info("http", "method", r.Method, "path", r.URL.Path, "status", sw.status, "dur_ms", time.Since(start).Milliseconds())
+		log.Info("http", "method", r.Method, "path", path, "status", sw.status, "dur_ms", time.Since(start).Milliseconds())
 	})
 }
 

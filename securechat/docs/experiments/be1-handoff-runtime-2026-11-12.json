@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-12",
+  "timezone": "Asia/Bangkok",
+  "project": "securechat-be1",
+  "passed": true,
+  "sourceSHA256": "3dc78b4cff6f550147f21428b113eef3fc10bc74be2e5ef49a25343ee60b81ff",
+  "images": [
+    {
+      "tag": "securechat-be1-backend-a",
+      "imageID": "sha256:62b043c87ff31801f7ad28c19b409999189d75db8299982b7f149118c1f4d002",
+      "user": "nonroot:nonroot"
+    },
+    {
+      "tag": "securechat-be1-backend-b",
+      "imageID": "sha256:5b5c564b560a3dab940f5097940627269dfc403325f27df2f2d7f82bcf6f0a02",
+      "user": "nonroot:nonroot"
+    }
+  ],
+  "services": [
+    {
+      "service": "backend-a",
+      "baseURL": "http://localhost:28081",
+      "readiness": "PASS",
+      "health": "PASS",
+      "accessLogMarkerAbsent": true,
+      "matchedTemplatePresent": true,
+      "unmatchedFallbackPresent": true
+    },
+    {
+      "service": "backend-b",
+      "baseURL": "http://localhost:28082",
+      "readiness": "PASS",
+      "health": "PASS",
+      "accessLogMarkerAbsent": true,
+      "matchedTemplatePresent": true,
+      "unmatchedFallbackPresent": true
+    }
+  ],
+  "scope": "Fresh rebuilt runtime health/readiness and access-log privacy smoke; full Signal privacy and BE2 DLQ replay remain unverified.",
+  "postRecoveryReadiness": {
+    "28081": "ready",
+    "28082": "ready"
+  },
+  "migration": {
+    "version": 3,
+    "dirty": false
+  },
+  "remainingTestSchemas": 0,
+  "outageReport": "be1-outage-2026-11-12.json"
+}

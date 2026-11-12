@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -25,6 +26,8 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidInput):
 		writeJSON(w, http.StatusBadRequest, errorBody{"invalid_input"})
+	case errors.Is(err, domain.ErrConflict):
+		writeJSON(w, http.StatusConflict, errorBody{"idempotency_conflict"})
 	case errors.Is(err, domain.ErrNotMember):
 		writeJSON(w, http.StatusForbidden, errorBody{"forbidden"})
 	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrNoPreKeyBundle):
@@ -39,7 +42,11 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 
 func decodeJSON(r *http.Request, v any) error {
 	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
+	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
+		return domain.ErrInvalidInput
+	}
+	if err := dec.Decode(new(any)); err != io.EOF {
 		return domain.ErrInvalidInput
 	}
 	return nil
@@ -53,9 +60,17 @@ func pathUUID(r *http.Request, name string) (uuid.UUID, error) {
 	return id, nil
 }
 
-func queryInt(r *http.Request, name string, def int64) int64 {
-	if v, err := strconv.ParseInt(r.URL.Query().Get(name), 10, 64); err == nil {
-		return v
+func queryInt(r *http.Request, name string, def int64) (int64, error) {
+	values, exists := r.URL.Query()[name]
+	if !exists {
+		return def, nil
 	}
-	return def
+	if len(values) != 1 {
+		return 0, domain.ErrInvalidInput
+	}
+	v, err := strconv.ParseInt(values[0], 10, 64)
+	if err != nil {
+		return 0, domain.ErrInvalidInput
+	}
+	return v, nil
 }

@@ -47,6 +47,7 @@ type MessageAccepted struct {
 // Receipt payload for MessageDelivered / MessageRead.
 // SenderID is an additive field (v1) so the gateway can route back to the sender.
 type Receipt struct {
+	ReceiptSeq     int64     `json:"receiptSeq,omitempty"`
 	MessageID      uuid.UUID `json:"messageId"`
 	ConversationID uuid.UUID `json:"conversationId"`
 	Seq            int64     `json:"seq"`
