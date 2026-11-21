@@ -1,0 +1,365 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #fff;
+  --text: #15181d;
+  --muted: #66707d;
+  --border: #dde1e7;
+  --primary: #1f6feb;
+  --primary-text: #fff;
+  --mine: #dbeafe;
+  --theirs: #fff;
+  --danger: #b42318;
+  --danger-bg: #fee4e2;
+  --warn: #93370d;
+  --warn-bg: #fef0c7;
+  --info: #344054;
+  --info-bg: #eef1f5;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216;
+    --surface: #181c22;
+    --text: #e8ebf0;
+    --muted: #98a2b3;
+    --border: #2b313a;
+    --primary: #5b9bff;
+    --primary-text: #0b1220;
+    --mine: #1b3358;
+    --theirs: #202630;
+    --danger: #fda29b;
+    --danger-bg: #3b1613;
+    --warn: #fec84b;
+    --warn-bg: #3a2a0b;
+    --info: #cbd2dc;
+    --info-bg: #232a34;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.45 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+h1 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 40px;
+}
+button.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-text);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+button.link {
+  border: 0;
+  background: none;
+  color: var(--primary);
+  padding: 0 0.25rem;
+  min-height: 0;
+  text-decoration: underline;
+}
+input,
+textarea {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+code {
+  word-break: break-all;
+  font-size: 0.85em;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.85rem;
+}
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  justify-content: space-between;
+}
+.topbar a {
+  text-decoration: none;
+  font-size: 1.3rem;
+  color: var(--text);
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+}
+.switch {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.switch input {
+  width: auto;
+}
+.banner {
+  background: var(--info-bg);
+  color: var(--info);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+.banner-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.field-error {
+  color: var(--danger);
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+.empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px 0;
+}
+.auth {
+  max-width: 380px;
+  margin: 8vh auto 0;
+  padding: 0 16px;
+}
+.auth h1 {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface);
+  padding: 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.auth label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.conv-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.conv-list a {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+.room {
+  height: 100dvh;
+}
+.room-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.room-foot {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-status {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bubble-row {
+  display: flex;
+}
+.bubble-row.mine {
+  justify-content: flex-end;
+}
+.bubble {
+  max-width: min(80%, 520px);
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--theirs);
+  border: 1px solid var(--border);
+}
+.mine .bubble {
+  background: var(--mine);
+}
+.bubble-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.bubble-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.bubble-error {
+  color: var(--danger);
+  font-size: 0.75rem;
+}
+.st-failed {
+  color: var(--danger);
+}
+.risk-notes {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.risk {
+  font-size: 0.82rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.risk-danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.risk-warning {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.risk-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+.composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.composer textarea {
+  resize: none;
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.5);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+.dialog {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 18px;
+  max-width: 440px;
+  width: 100%;
+}
+.dialog ul {
+  padding-left: 1.1rem;
+}
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+th,
+td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+.bad {
+  color: var(--danger);
+  font-weight: 600;
+}
