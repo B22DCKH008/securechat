@@ -1,0 +1,35 @@
+seed: 42
+
+# Tên file nằm trong data/raw/ (hoặc data/demo/raw/ khi chạy --demo)
+files:
+  train_pool: messages_train_pool.csv      # real + synthetic. Cột: text,label,source[,group,lang]
+  handlabeled: messages_handlabeled.csv    # TEST gán tay. Cột: text,label[,hard,source,note]
+
+featurizer:                # PHẢI giống hệt phía TypeScript (xem docs trong README, mục "Parity")
+  strip_diacritics: true   # bỏ dấu + đ->d: bền với tin không dấu/teencode
+  char_ngram: [2, 5]
+  word_ngram: [1, 2]
+  sublinear_tf: true
+  min_df: 2
+  max_features: 50000
+
+model:
+  C: 4.0
+  class_weight: balanced
+  max_iter: 2000
+
+dedupe:
+  near_dup_cosine: 0.85    # >= ngưỡng này coi là cùng nhóm (cùng template) => không bị chia sang tập khác
+
+split:
+  val_fraction: 0.15
+  val_min_real: 150        # nếu có >= số tin "real" này thì validation chỉ lấy từ tin real
+
+threshold:
+  target_precision: 0.90   # chọn trên validation: recall lớn nhất với precision >= giá trị này (risky vs benign)
+  target_recall: 0.80      # ngưỡng chất lượng tối thiểu để báo cáo "đạt/không đạt" (đặt TRƯỚC khi xem kết quả)
+
+bootstrap:
+  n: 500
+
+sweep_max_features: [5000, 10000, 20000, 50000]   # AI11: tỉa vocab, đo size/F1/latency
