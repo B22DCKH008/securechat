@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSettings } from '../app/settings';
 import { useAuth } from '../features/auth/authStore';
+import { copyText } from '../lib/clipboard';
 import { validatePeerId } from '../features/auth/validation';
 import { peerOf } from '../features/messages/model';
 import { useConversations, useWsStatus } from '../features/messages/hooks';
@@ -79,9 +80,7 @@ export function ChatListPage({ session }: { session: Session }) {
           <button
             type="button"
             className="link"
-            onClick={() =>
-              void navigator.clipboard?.writeText(session.user.userId).then(() => setCopied(true))
-            }
+            onClick={() => void copyText(session.user.userId).then(setCopied)}
           >
             {copied ? 'Đã chép' : 'Chép'}
           </button>
