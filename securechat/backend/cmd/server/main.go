@@ -111,7 +111,18 @@ func run(cfg config.Config, log *slog.Logger) error {
 	bg, cancelBG := context.WithCancel(context.Background())
 	defer cancelBG()
 
+	// RS29: drop entries a previous crash of this INSTANCE_ID left behind.
+	cleanCtx, cleanCancel := context.WithTimeout(ctx, 3*time.Second)
+	n, err := registry.CleanupInstance(cleanCtx)
+	cleanCancel()
+	if err != nil {
+		log.Warn("presence cleanup failed", "err", err)
+	} else if n > 0 {
+		log.Info("removed stale presence entries", "count", n)
+	}
+
 	deliveryRouter := delivery.NewRouter(hub, 100_000)
+	var relayPublisher outbox.Publisher = producer
 	switch cfg.DeliveryTransport {
 	case config.TransportKafka:
 		consumer, err := kafka.NewGatewayConsumer(cfg.KafkaBrokers, cfg.KafkaConsumerGroup, cfg.KafkaStartFromLatest, cfg.KafkaStaticMember,
@@ -120,19 +131,38 @@ func run(cfg config.Config, log *slog.Logger) error {
 			return err
 		}
 		defer consumer.Close()
-		kc := delivery.NewKafkaConsumer(consumer, producer, deliveryRouter, cfg.KafkaTopicDLQ, log)
-		wg.Add(1)
+		retryGroup := cfg.KafkaConsumerGroup + ".retry"
+		retryConsumer, err := kafka.NewRetryConsumer(cfg.KafkaBrokers, retryGroup, cfg.KafkaStaticMember, cfg.KafkaTopicRetry)
+		if err != nil {
+			return err
+		}
+		defer retryConsumer.Close()
+		policy := delivery.RetryPolicy{Topic: cfg.KafkaTopicRetry, Group: retryGroup,
+			MaxAttempts: cfg.RetryMaxAttempts, BaseDelay: cfg.RetryBaseDelay, MaxDelay: cfg.RetryMaxDelay}
+		kc := delivery.NewKafkaConsumer(consumer, producer, deliveryRouter, cfg.KafkaTopicDLQ, log).WithRetry(policy)
+		rc := delivery.NewRetryConsumer(retryConsumer, producer, deliveryRouter, cfg.KafkaTopicDLQ, policy, log)
+		wg.Add(2)
 		go func() { defer wg.Done(); kc.Run(bg) }()
+		go func() { defer wg.Done(); rc.Run(bg) }()
+		if cfg.ConsumerLagInterval > 0 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				kafka.RunLagMonitor(bg, consumer, cfg.ConsumerLagInterval, log.With("component", "lag-monitor"), cfg.KafkaConsumerGroup, retryGroup)
+			}()
+		}
 	case config.TransportRedis:
+		// EXP13 comparison mode: the relay PUBLISHes to Redis and every instance
+		// SUBSCRIBEs. Non-durable realtime path; PostgreSQL sync still recovers.
 		log.Warn("DELIVERY_TRANSPORT=redis (experiment mode, non-durable realtime path)")
 		sub := delivery.NewRedisSubscriber(rdb, deliveryRouter, log, cfg.KafkaTopicMessages, cfg.KafkaTopicReceipts)
 		wg.Add(1)
 		go func() { defer wg.Done(); sub.Run(bg) }()
-		// TODO(BE2, KF16): relay must publish to Redis too in this mode.
+		relayPublisher = delivery.NewRedisPublisher(rdb)
 	}
 
 	if cfg.RelayEnabled {
-		relay := outbox.NewRelay(pool, producer, outbox.Config{
+		relay := outbox.NewRelay(pool, relayPublisher, outbox.Config{
 			PollInterval: cfg.RelayPollInterval, BatchSize: cfg.RelayBatchSize,
 			LockID: cfg.RelayAdvisoryLockID, Retention: cfg.OutboxRetention,
 		}, log)
@@ -164,5 +194,8 @@ func run(cfg config.Config, log *slog.Logger) error {
 	_ = srv.Shutdown(shCtx)
 	cancelBG()
 	wg.Wait()
+	if _, err := registry.CleanupInstance(shCtx); err != nil {
+		log.Warn("presence cleanup on shutdown failed", "err", err)
+	}
 	return nil
 }

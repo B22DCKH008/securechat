@@ -23,7 +23,7 @@ type (
 	}
 	Presence interface {
 		Register(ctx context.Context, userID uuid.UUID, connID string) error
-		Refresh(ctx context.Context, userID uuid.UUID) error
+		Refresh(ctx context.Context, userID uuid.UUID, connID string) error
 		Unregister(ctx context.Context, userID uuid.UUID, connID string) error
 	}
 	Limiter interface {
@@ -88,13 +88,16 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cancel()
 		h.hub.Unregister(c)
 		uctx, ucancel := context.WithTimeout(context.Background(), time.Second)
-		_ = h.presence.Unregister(uctx, userID, c.ID)
+		if err := h.presence.Unregister(uctx, userID, c.ID); err != nil {
+			metrics.PresenceErrors.WithLabelValues("unregister").Inc()
+		}
 		ucancel()
 		c.close(websocket.StatusNormalClosure, "")
 	}()
 
 	if err := h.presence.Register(ctx, userID, c.ID); err != nil {
 		// Presence is advisory; delivery still works via Kafka broadcast (RS39).
+		metrics.PresenceErrors.WithLabelValues("register").Inc()
 		h.log.Warn("presence register failed", "err", err)
 	}
 	h.log.Debug("ws connected", "conn_id", c.ID, "user_id", userID)
@@ -104,7 +107,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			c.close(websocket.StatusPolicyViolation, "session expired or revoked")
 			return
 		}
-		_ = h.presence.Refresh(ctx, userID)
+		if err := h.presence.Refresh(ctx, userID, c.ID); err != nil {
+			metrics.PresenceErrors.WithLabelValues("refresh").Inc()
+		}
 	})
 
 	// Hint the client to run cursor sync right after (re)connect (RS15, RS4).
@@ -156,6 +161,7 @@ func (h *Handler) dispatch(ctx context.Context, c *Conn, f Frame) {
 			ClientMessageID: p.ClientMessageID,
 			ConversationID:  p.ConversationID,
 			Ciphertext:      p.Ciphertext,
+			Ciphertexts:     p.Ciphertexts,
 			ProtocolMeta:    p.ProtocolMeta,
 			ClientCreatedAt: p.ClientCreatedAt,
 		})
@@ -195,6 +201,8 @@ func toErrorPayload(err error) ErrorPayload {
 	switch {
 	case errors.Is(err, domain.ErrConflict):
 		return ErrorPayload{Code: "idempotency_conflict", Message: "clientMessageId reused with different payload"}
+	case errors.Is(err, domain.ErrMembershipChanged):
+		return ErrorPayload{Code: "membership_changed", Message: "refetch members, re-encrypt, retry"}
 	case errors.Is(err, domain.ErrNotMember):
 		return ErrorPayload{Code: "forbidden", Message: "not a member"}
 	case errors.Is(err, domain.ErrNotFound):

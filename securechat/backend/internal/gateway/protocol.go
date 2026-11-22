@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/securechat/backend/internal/domain"
 )
 
 // Frame is the single WebSocket envelope in both directions.
@@ -32,11 +33,13 @@ const (
 )
 
 type SendPayload struct {
-	ClientMessageID string          `json:"clientMessageId"`
-	ConversationID  uuid.UUID       `json:"conversationId"`
-	Ciphertext      []byte          `json:"ciphertext"` // base64
-	ProtocolMeta    json.RawMessage `json:"protocolMeta"`
-	ClientCreatedAt *time.Time      `json:"clientCreatedAt,omitempty"`
+	ClientMessageID string    `json:"clientMessageId"`
+	ConversationID  uuid.UUID `json:"conversationId"`
+	Ciphertext      []byte    `json:"ciphertext,omitempty"` // base64; direct conversations
+	// Ciphertexts: group conversations, one pairwise copy per other member.
+	Ciphertexts     []domain.RecipientCiphertext `json:"ciphertexts,omitempty"`
+	ProtocolMeta    json.RawMessage              `json:"protocolMeta"`
+	ClientCreatedAt *time.Time                   `json:"clientCreatedAt,omitempty"`
 	// NOTE: no senderId – the server uses the authenticated identity.
 }
 

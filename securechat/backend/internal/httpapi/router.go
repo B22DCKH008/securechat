@@ -61,6 +61,11 @@ func NewRouter(d Deps) http.Handler {
 	authed := func(h http.HandlerFunc) http.Handler { return d.Auth.Middleware(a.rateLimit(h)) }
 	mux.Handle("GET /v1/conversations", authed(a.listConversations))
 	mux.Handle("POST /v1/conversations", authed(a.createConversation))
+	mux.Handle("POST /v1/conversations/group", authed(a.createGroup))
+	mux.Handle("PATCH /v1/conversations/{id}", authed(a.renameGroup))
+	mux.Handle("GET /v1/conversations/{id}/members", authed(a.listMembers))
+	mux.Handle("POST /v1/conversations/{id}/members", authed(a.addMembers))
+	mux.Handle("DELETE /v1/conversations/{id}/members/{userId}", authed(a.removeMember))
 	mux.Handle("GET /v1/conversations/{id}/messages", authed(a.history))
 	mux.Handle("POST /v1/conversations/{id}/messages", authed(a.sendMessage))
 	mux.Handle("POST /v1/messages/{id}/receipts", authed(a.receipt))

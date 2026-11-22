@@ -44,3 +44,19 @@ func TestRejectUnsafeAuthAndRelayConfiguration(t *testing.T) {
 		}
 	}
 }
+
+func TestRetryLagAndPresenceConfiguration(t *testing.T) {
+	t.Setenv("JWT_SECRET", "012345678901234567890123456789012345")
+	c, err := Load()
+	if err != nil || c.RetryMaxAttempts != 5 || c.ConsumerLagInterval <= 0 || c.PresenceTTL <= c.WSPingInterval+c.WSPongTimeout {
+		t.Fatalf("defaults: %+v %v", c, err)
+	}
+	for k, v := range map[string]string{"KAFKA_RETRY_MAX_ATTEMPTS": "0", "KAFKA_RETRY_MAX_DELAY": "1ms", "KAFKA_LAG_INTERVAL": "-1s", "PRESENCE_TTL": "30s"} {
+		t.Run(k, func(t *testing.T) {
+			t.Setenv(k, v)
+			if _, err := Load(); err == nil {
+				t.Fatalf("accepted %s=%s", k, v)
+			}
+		})
+	}
+}

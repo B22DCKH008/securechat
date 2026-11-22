@@ -28,6 +28,8 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 		writeJSON(w, http.StatusBadRequest, errorBody{"invalid_input"})
 	case errors.Is(err, domain.ErrConflict):
 		writeJSON(w, http.StatusConflict, errorBody{"idempotency_conflict"})
+	case errors.Is(err, domain.ErrMembershipChanged):
+		writeJSON(w, http.StatusConflict, errorBody{"membership_changed"})
 	case errors.Is(err, domain.ErrNotMember):
 		writeJSON(w, http.StatusForbidden, errorBody{"forbidden"})
 	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrNoPreKeyBundle):

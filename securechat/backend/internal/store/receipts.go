@@ -45,9 +45,12 @@ func AppendReceiptChange(ctx context.Context, db DBTX, msg domain.Message, recip
 	return revision, err
 }
 
-func ReceiptChangesAfter(ctx context.Context, db DBTX, conv uuid.UUID, after int64, limit int) ([]domain.Receipt, error) {
+// ReceiptChangesAfter pages receipt changes; minMessageSeq hides receipts for
+// messages a later-joined group member cannot read.
+func ReceiptChangesAfter(ctx context.Context, db DBTX, conv uuid.UUID, after, minMessageSeq int64, limit int) ([]domain.Receipt, error) {
 	rows, err := db.Query(ctx, `SELECT receipt_seq,message_id,conversation_id,message_seq,recipient_id,sender_id,state,occurred_at
-		FROM receipt_changes WHERE conversation_id=$1 AND receipt_seq>$2 ORDER BY receipt_seq LIMIT $3`, conv, after, limit)
+		FROM receipt_changes WHERE conversation_id=$1 AND receipt_seq>$2 AND message_seq>$3
+		ORDER BY receipt_seq LIMIT $4`, conv, after, minMessageSeq, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "MessageAccepted v1 (topic chat.messages, key = conversationId)",
+  "title": "MessageAccepted v1/v2 (topic chat.messages, key = conversationId)",
   "type": "object",
   "required": ["eventId", "eventType", "schemaVersion", "occurredAt", "payload"],
   "properties": {
@@ -20,12 +20,39 @@
         "recipients": { "type": "array", "items": { "type": "string", "format": "uuid" } },
         "ciphertext": { "type": "string", "contentEncoding": "base64" },
         "protocolMeta": { "type": "object" },
-        "acceptedAt": { "type": "string", "format": "date-time" }
+        "acceptedAt": { "type": "string", "format": "date-time" },
+        "kind": { "enum": ["message", "system"], "description": "schemaVersion 2, additive; absent means message" },
+        "system": {
+          "type": "object",
+          "description": "kind=system only: server membership metadata",
+          "properties": {
+            "type": { "enum": ["group_created", "members_added", "member_removed", "member_left", "title_changed"] },
+            "actorId": { "type": "string", "format": "uuid" },
+            "userIds": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+            "title": { "type": "string" },
+            "newOwnerId": { "type": "string", "format": "uuid" }
+          }
+        },
+        "ciphertexts": {
+          "type": "array",
+          "description": "group messages only (ciphertext is then empty): one pairwise copy per recipient. The gateway pushes each recipient only its own copy as ciphertext/protocolMeta and removes this list from WebSocket frames.",
+          "items": {
+            "type": "object",
+            "required": ["recipientId", "deviceId", "ciphertext"],
+            "properties": {
+              "recipientId": { "type": "string", "format": "uuid" },
+              "deviceId": { "type": "integer", "minimum": 1 },
+              "ciphertext": { "type": "string", "contentEncoding": "base64" },
+              "protocolMeta": { "type": "object" }
+            }
+          }
+        }
       }
     }
   },
   "x-rules": [
     "NO plaintext ever.",
-    "Additive changes only; bump schemaVersion when adding fields."
+    "Additive changes only; bump schemaVersion when adding fields.",
+    "schemaVersion 2 (group chat) added kind, system and ciphertexts; v1 consumers ignore them."
   ]
 }
