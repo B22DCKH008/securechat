@@ -23,13 +23,13 @@ Backend: chạy docker-compose ở repo gốc (xem `backend/`). Đổi địa ch
 Đăng ký tài khoản (mật khẩu ≥ 12 ký tự) ở hai trình duyệt/profile khác nhau; backend chưa có API tìm người
 dùng nên **dán UUID của nhau** ở màn hình danh sách (hiển thị sẵn "ID của bạn").
 
-| Lệnh                              | Việc                                                                     |
-| --------------------------------- | ------------------------------------------------------------------------ |
-| `npm test`                        | 158 test (vitest): parity TS↔Python, transport, ChatService, storage, UI |
-| `npm run typecheck`               | `tsc --noEmit` (strict)                                                  |
-| `npm run build`                   | typecheck + build production vào `dist/`                                 |
-| `npm run models:sync [-- --demo]` | chép model đã train từ `ml/` sang `public/models` + fixtures parity      |
-| `npm run format` / `format:check` | Prettier (`.prettierrc`: singleQuote)                                    |
+| Lệnh                              | Việc                                                                |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `npm test`                        | 160 test + 8 test model thật (tự skip nếu chưa có `ai-real`)        |
+| `npm run typecheck`               | `tsc --noEmit` (strict)                                             |
+| `npm run build`                   | typecheck + build production vào `dist/`                            |
+| `npm run models:sync [-- --demo]` | chép model đã train từ `ml/` sang `public/models` + fixtures parity |
+| `npm run format` / `format:check` | Prettier (`.prettierrc`: singleQuote)                               |
 
 Biến môi trường (`.env`, tùy chọn): `VITE_API_URL`, `VITE_WS_URL` (mặc định cùng origin),
 `VITE_E2EE=mock|signal`, `VITE_AI_TIMEOUT_MS`.
@@ -99,8 +99,15 @@ chạy lệnh trên rồi commit đè. WASM của onnxruntime-web (~15 MB) nằm
 Nếu chưa model URL nào đạt ngưỡng chất lượng, manifest ghi `meetsBar: false` và dùng LR (báo trung thực, không giấu).
 
 **Parity Python↔TS** là điều kiện sống còn: nếu `normalizeText`/tokenizer/URL features lệch dù một ký tự thì model cho kết quả sai
-_một cách im lặng_. Các test `tests/ai/*.parity.test.ts` so với fixtures do Python sinh (normalize/analyze khớp tuyệt đối,
-xác suất ≤ 1e-5…1e-9, ONNX ≤ 1e-4, chạy cả onnxruntime-web thật trong Node). Sửa featurizer ở một phía thì phải sửa phía kia và sinh lại fixtures.
+_một cách im lặng_. Parity được kiểm ở hai chỗ (normalize/analyze khớp tuyệt đối, xác suất ≤ 1e-5…1e-9, ONNX ≤ 1e-4,
+chạy cả onnxruntime-web thật trong Node):
+
+- `tests/ai/{text,url,onnx}.parity.test.ts` — trên fixtures **demo** (`tests/fixtures/ai-demo/`), luôn chạy; bảo vệ code featurizer TS.
+- `tests/ai/real.parity.test.ts` — trên model **thật** (`tests/fixtures/ai-real/`, do `models:sync` tạo). **Tự bỏ qua khi chưa có
+  `ai-real`**, nên `npm test` xanh lúc này _chưa_ chứng minh model thật khớp. Sau khi sync model thật, test này phải chạy (không còn "skipped")
+  và pass; nó cũng kiểm `public/models` đúng là bộ đã kiểm (không lẫn demo, không bản cũ).
+
+Sửa featurizer ở một phía thì phải sửa phía kia và sinh lại fixtures.
 
 **Đo hiệu năng:** mở `/bench` (không cần đăng nhập) trên **máy yếu/điện thoại thật**, bấm "Chạy đo", tải JSON.
 Dùng số p95 tệ nhất để chốt timeout (hiện `DEFAULT_AI_TIMEOUT_MS = 1500` chỉ là điểm xuất phát, ghi vào `labels.yaml: runtime.timeout_ms`).

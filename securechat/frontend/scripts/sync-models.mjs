@@ -108,6 +108,6 @@ if (existsSync(join(urlDir, 'url_spec.json'))) {
 writeFileSync(join(publicDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 writeFileSync(join(fixturesDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 
-// File WASM của onnxruntime-web KHÔNG chép ở đây: scripts/copy-ort.mjs tự làm trước dev/build.
+// File WASM của onnxruntime-web KHÔNG chép ở đây: Vite đóng gói qua `?url` (src/ai/runtime/ortAssets.ts).
 
 console.log(`→ ${publicDir}`);
