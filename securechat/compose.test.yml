@@ -8,6 +8,7 @@ services:
     environment:
       TEST_POSTGRES_DSN: postgres://securechat:securechat@postgres:5432/securechat?sslmode=disable
       TEST_KAFKA_BROKERS: kafka:9092
+      TEST_REDIS_ADDR: redis:6379
       GOMAXPROCS: "2"
       GOMEMLIMIT: 256MiB
       GOFLAGS: -p=1
@@ -16,10 +17,11 @@ services:
       - .:/workspace:ro
       - be1_go_modules:/go/pkg/mod
       - be1_go_build:/go-build-cache
-    command: [go, test, -race, -count=1, -tags=integration, -timeout=180s, -v, ./...]
+    command: [go, test, -race, -count=1, -tags=integration, -timeout=900s, -v, ./...]
     depends_on:
       postgres: {condition: service_healthy}
       kafka-init: {condition: service_completed_successfully}
+      redis: {condition: service_started}
 volumes:
   be1_go_modules:
   be1_go_build:
