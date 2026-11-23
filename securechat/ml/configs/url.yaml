@@ -15,7 +15,7 @@ phishvn:                    # đã kiểm với PhishVN v3.1.0 (Mendeley bản 4
   tier_col: null            # null = tự dò (label_confidence, confidence_tier, tier, ...)
   split_col: null           # null = tự dò (split, ...). Không có => chia theo domain (cảnh báo: không theo thời gian)
   eval_tiers: [gold, silver]   # chỉ dùng tầng này cho val/test chéo miền
-  val_tiers: null              # null = dùng eval_tiers. Chỉ nới cho VALIDATION (vd [gold, silver, bronze]) khi val_cross quá ít mẫu phishing; test_cross luôn theo eval_tiers
+  val_tiers: [gold, silver, bronze]              # null = dùng eval_tiers. Chỉ nới cho VALIDATION (vd [gold, silver, bronze]) khi val_cross quá ít mẫu phishing; test_cross luôn theo eval_tiers
   train_tiers: [gold, silver]  # tầng được đưa vào train (thêm bronze nếu muốn, báo cáo riêng)
 
 use_phishvn_train: true
