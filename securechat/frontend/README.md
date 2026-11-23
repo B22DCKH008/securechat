@@ -1,14 +1,16 @@
-# frontend/ — React + TypeScript client (FE/AI)
+# SecureChat: phân hệ frontend (React và TypeScript)
 
-Ứng dụng chat 1:1 chạy trên trình duyệt: gửi/nhận qua backend Go (REST + WebSocket), mã hóa đầu-cuối qua một
-giao diện `CryptoProvider`, và **phân tích rủi ro tin nhắn/URL ngay trên thiết bị** (TF-IDF+LR cho tin nhắn,
-LR/GBDT/RF cho URL) bằng TypeScript + onnxruntime-web. Plaintext không bao giờ rời trình duyệt.
+Ứng dụng chat 1:1 chạy trên trình duyệt. Ứng dụng gửi và nhận tin qua backend Go (REST và WebSocket), mã hóa đầu cuối qua giao diện `CryptoProvider`, và phân tích rủi ro của tin nhắn và URL ngay trên thiết bị (TF-IDF kết hợp LR cho tin nhắn; LR, GBDT hoặc RF cho URL) bằng TypeScript và onnxruntime-web. Nội dung tin nhắn dạng rõ không rời khỏi trình duyệt.
 
-> **Trạng thái (bộ khung):** toàn bộ luồng chạy được và có test, nhưng ba thứ còn là chỗ cắm, xem
-> [Giới hạn đã biết](#giới-hạn-đã-biết): (1) E2EE đang là **mock, không mã hóa thật**; (2) model AI trong repo
-> chỉ là **demo** (số đo vô nghĩa) cho tới khi có dữ liệu thật; (3) chưa chạy thử với backend thật.
+## Trạng thái hiện tại
 
-## Chạy
+Toàn bộ luồng chạy được và có kiểm thử, nhưng còn ba hạn chế, nêu chi tiết ở mục 7:
+
+1. Mã hóa đầu cuối đang dùng bản mô phỏng (mock), chưa mã hóa thật.
+2. Model AI trong kho là model demo, số đo không có ý nghĩa, cho đến khi có dữ liệu thật.
+3. Chưa chạy thử với backend thật.
+
+## 1. Chạy ứng dụng
 
 ```bash
 cd frontend
@@ -16,112 +18,112 @@ npm install
 npm run dev                     # http://localhost:5173, proxy /v1 và /ws tới backend :8081
 ```
 
-Cần Node ≥ 22.12. Model (demo) đã được commit sẵn trong `public/models/`, nên clone về là chạy được. File `.mjs/.wasm` của
-onnxruntime-web được Vite nạp thẳng từ `node_modules` (`src/ai/runtime/ortAssets.ts`, import `?url`): không cần chép tay.
+Yêu cầu Node từ 22.12 trở lên. Model demo đã được commit trong `public/models/` nên sau khi clone có thể chạy ngay. Các tệp `.mjs` và `.wasm` của onnxruntime-web được Vite nạp trực tiếp từ `node_modules` (`src/ai/runtime/ortAssets.ts`, dùng `import ... ?url`), không cần sao chép thủ công.
 
-Backend: chạy docker-compose ở repo gốc (xem `backend/`). Đổi địa chỉ: `VITE_BACKEND=http://host:port npm run dev`.
-Đăng ký tài khoản (mật khẩu ≥ 12 ký tự) ở hai trình duyệt/profile khác nhau; backend chưa có API tìm người
-dùng nên **dán UUID của nhau** ở màn hình danh sách (hiển thị sẵn "ID của bạn").
+Backend chạy bằng docker-compose ở thư mục gốc của kho (xem `backend/`). Địa chỉ backend đổi bằng biến `VITE_BACKEND`, ví dụ `VITE_BACKEND=http://host:port npm run dev`. Để thử, đăng ký hai tài khoản (mật khẩu tối thiểu 12 ký tự) ở hai trình duyệt hoặc hai profile khác nhau. Backend chưa có API tìm người dùng nên cần nhập UUID của nhau ở màn hình danh sách hội thoại (màn hình có hiển thị sẵn "ID của bạn").
 
-| Lệnh                              | Việc                                                                |
-| --------------------------------- | ------------------------------------------------------------------- |
-| `npm test`                        | 160 test + 8 test model thật (tự skip nếu chưa có `ai-real`)        |
-| `npm run typecheck`               | `tsc --noEmit` (strict)                                             |
-| `npm run build`                   | typecheck + build production vào `dist/`                            |
-| `npm run models:sync [-- --demo]` | chép model đã train từ `ml/` sang `public/models` + fixtures parity |
-| `npm run format` / `format:check` | Prettier (`.prettierrc`: singleQuote)                               |
+| Lệnh | Chức năng |
+|---|---|
+| `npm test` | Chạy 160 test; có thêm 8 test trên model thật, tự bỏ qua khi chưa có `ai-real` |
+| `npm run typecheck` | `tsc --noEmit` ở chế độ strict |
+| `npm run build` | Kiểm tra kiểu và build bản production vào `dist/` |
+| `npm run models:sync [-- --demo]` | Sao chép model đã huấn luyện từ `ml/` sang `public/models` cùng fixtures đối chiếu |
+| `npm run format`, `npm run format:check` | Prettier (cấu hình trong `.prettierrc`, dùng nháy đơn) |
 
-Biến môi trường (`.env`, tùy chọn): `VITE_API_URL`, `VITE_WS_URL` (mặc định cùng origin),
-`VITE_E2EE=mock|signal`, `VITE_AI_TIMEOUT_MS`.
+Biến môi trường (tệp `.env`, không bắt buộc): `VITE_API_URL`, `VITE_WS_URL` (mặc định cùng origin), `VITE_E2EE=mock|signal`, `VITE_AI_TIMEOUT_MS`.
 
-## Cấu trúc
+## 2. Cấu trúc mã nguồn
 
 ```
 src/
-├── main.tsx, app/         # App + routing, services.ts (singleton api/analyzer), session.ts (gom dịch vụ theo người dùng), settings.ts
-├── pages/                 # LoginPage, ChatListPage, ChatRoomPage, BenchPage (/bench)
-├── components/
-│   ├── chat/              # MessageList, MessageBubble (trạng thái gửi), Composer (kiểm tra AI trước khi gửi)
-│   └── warnings/          # RiskBanner, SendWarningDialog, E2eeBanner, AiStatus, riskText (câu chữ cảnh báo)
-├── features/
-│   ├── auth/              # authStore (zustand), validation (khớp ràng buộc backend)
-│   └── messages/          # chatService.ts (điều phối), model.ts (hàm thuần), hooks.ts
-├── crypto/                # types (CryptoProvider), mockProvider, signalProvider (STUB), index (factory)
-├── transport/             # protocol.ts (khung WS, KHÔNG sửa), ws.ts, rest.ts, tokenManager.ts, backoff.ts, limits.ts, types.ts
-├── storage/               # types, memory, indexedDb (idb), index (openStorage)
-├── ai/
-│   ├── contract.ts        # interface chung với ml/ (3 nhãn: benign | scam | spam)
-│   ├── features/          # text.ts, url.ts, pyCompat.ts: bản TS của featurizer Python (phải khớp từng bit)
-│   ├── runtime/           # messageModel, urlModel, modelLoader, engine, worker(+Engine), analyzer, manifest
-│   ├── rules/sensitive.ts # luật regex: thẻ (Luhn), CCCD, OTP, mật khẩu, STK, khóa riêng
-│   ├── risk.ts            # gộp luật + model tin nhắn + model URL cho một tin
-│   └── bench/             # runBench (p50/p95/p99, cold-load) + mẫu đo
-└── lib/                   # emitter, serialQueue, base64, uuid
-public/models/             # model + manifest (ĐƯỢC commit)
-tests/fixtures/ai-demo/    # fixtures từ model demo, để test chạy không cần train
+  main.tsx, app/         App và định tuyến, services.ts (singleton api/analyzer), session.ts (gom dịch vụ theo người dùng), settings.ts
+  pages/                 LoginPage, ChatListPage, ChatRoomPage, BenchPage (/bench)
+  components/
+    chat/                MessageList, MessageBubble (trạng thái gửi), Composer (kiểm tra AI trước khi gửi)
+    warnings/            RiskBanner, SendWarningDialog, E2eeBanner, AiStatus, riskText (nội dung cảnh báo)
+  features/
+    auth/                authStore (zustand), validation (khớp ràng buộc của backend)
+    messages/            chatService.ts (điều phối), model.ts (hàm thuần), hooks.ts
+  crypto/                types (CryptoProvider), mockProvider, signalProvider (chưa cài đặt), index (factory)
+  transport/             protocol.ts (khung WebSocket, không sửa), ws.ts, rest.ts, tokenManager.ts, backoff.ts, limits.ts, types.ts
+  storage/               types, memory, indexedDb (idb), index (openStorage)
+  ai/
+    contract.ts          Giao diện chung với ml/ (ba nhãn: benign, scam, spam)
+    features/            text.ts, url.ts, pyCompat.ts: bản TypeScript của featurizer Python, phải khớp từng bit
+    runtime/             messageModel, urlModel, modelLoader, engine, worker (và Engine), analyzer, manifest
+    rules/sensitive.ts   Luật regex: thẻ (Luhn), CCCD, OTP, mật khẩu, số tài khoản, khóa riêng
+    risk.ts              Gộp luật, model tin nhắn và model URL thành kết quả cho một tin
+    bench/               runBench (p50, p95, p99, cold-load) và mẫu đo
+  lib/                   emitter, serialQueue, base64, uuid
+public/models/           Model và manifest (được commit)
+tests/fixtures/ai-demo/  Fixtures từ model demo, để test chạy được khi chưa huấn luyện
 scripts/sync-models.mjs
 ```
 
-## Luồng
+## 3. Luồng xử lý tin nhắn
 
-**Gửi** (`Composer` → `ChatService.sendText`):
+### 3.1. Gửi tin
 
-1. `assessRisk(outgoing)`: luật nhạy cảm + model tin nhắn + model từng URL. Có cảnh báo → hỏi lại ("Sửa lại" / "Vẫn gửi"); AI lỗi/quá hạn **không chặn** việc gửi.
-2. `crypto.encrypt` → lưu local (`status: sending`, kèm ciphertext) **trước khi** gửi → WS `send`, rớt/timeout thì REST (cùng `clientMessageId`).
-3. `accepted` → ghi `messageId`/`seq`, xóa ciphertext chờ. Lỗi mạng → `failed` (có nút Thử lại, tự gửi lại khi kết nối lại).
+Luồng bắt đầu từ `Composer` và gọi `ChatService.sendText`:
 
-**Nhận**: WS `message` → hàng đợi tuần tự theo hội thoại → khử trùng theo `messageId` → `seq == cursor+1` mới nhận,
-cao hơn thì `POST /v1/sync` → giải mã → lưu → ack `delivered` → AI phân tích nền → cập nhật cảnh báo.
-Mỗi lần kết nối (lại) đều chạy sync, rồi gửi lại tin còn chờ.
+1. `assessRisk(outgoing)` kết hợp luật nhạy cảm, model tin nhắn và model cho từng URL. Nếu có cảnh báo, ứng dụng hỏi lại người dùng ("Sửa lại" hoặc "Vẫn gửi"). Khi AI lỗi hoặc quá hạn, việc gửi tin không bị chặn.
+2. `crypto.encrypt` mã hóa tin, sau đó tin được lưu cục bộ (`status: sending`, kèm ciphertext) trước khi gửi qua WebSocket (`send`). Nếu WebSocket rớt hoặc quá hạn, tin được gửi qua REST với cùng `clientMessageId`.
+3. Khi nhận `accepted`, ứng dụng ghi `messageId` và `seq`, đồng thời xóa ciphertext đang chờ. Khi lỗi mạng, tin chuyển sang `failed`; người dùng có nút "Thử lại" và tin tự gửi lại khi kết nối được khôi phục.
 
-### Bất biến phải giữ (vi phạm = bug)
+### 3.2. Nhận tin
 
-- Gửi lại luôn dùng **đúng `clientMessageId` + đúng ciphertext đã lưu** (khác payload → backend trả 409).
-- `seq` liền mạch theo hội thoại; hụt thì sync, không bỏ qua. Cursor chỉ tiến theo tin đã xử lý (backend: `nextCursor` = seq cuối trang).
-- Refresh token **xoay vòng, dùng một lần; dùng lại sẽ thu hồi cả phiên** → `TokenManager` refresh single-flight, thay token nguyên tử, 401 chỉ thử lại đúng một lần.
-- Receipt đơn điệu (`sent < delivered < read`), `receiptSeq` có cursor riêng.
-- AI lỗi/quá hạn/tắt ⇒ `status` khác `ok` ⇒ UI nói "AI chưa kiểm tra được". **Không bao giờ** hiện "an toàn".
-- Chỉ lưu/ghi log **loại** dữ liệu nhạy cảm phát hiện được, không lưu giá trị.
+Tin từ WebSocket (`message`) vào hàng đợi tuần tự theo hội thoại và được khử trùng theo `messageId`. Tin chỉ được nhận khi `seq` bằng `cursor + 1`; nếu `seq` lớn hơn thì ứng dụng gọi `POST /v1/sync`. Sau đó tin được giải mã, lưu, gửi ack `delivered`, rồi AI phân tích ở chế độ nền và cập nhật cảnh báo. Mỗi lần kết nối (hoặc kết nối lại) đều chạy đồng bộ, sau đó gửi lại các tin còn chờ.
 
-## Model AI
+## 4. Các ràng buộc cần giữ
 
-`ml/` train và export; frontend chỉ nạp:
+Vi phạm các ràng buộc sau được xem là lỗi.
+
+- Gửi lại luôn dùng đúng `clientMessageId` và đúng ciphertext đã lưu; nếu payload khác, backend trả về 409.
+- `seq` phải liền mạch theo từng hội thoại; khi thiếu thì đồng bộ, không bỏ qua. Cursor chỉ tiến theo các tin đã xử lý (với backend, `nextCursor` là `seq` cuối của trang).
+- Refresh token xoay vòng và chỉ dùng một lần; dùng lại sẽ thu hồi cả phiên. Vì vậy `TokenManager` chạy refresh theo kiểu single-flight, thay token nguyên tử, và chỉ thử lại đúng một lần khi nhận 401.
+- Trạng thái receipt đơn điệu (`sent`, `delivered`, `read`), và `receiptSeq` có cursor riêng.
+- Khi AI lỗi, quá hạn hoặc bị tắt thì `status` khác `ok`, và giao diện hiển thị "AI chưa kiểm tra được". Giao diện không bao giờ hiển thị "an toàn".
+- Chỉ lưu và ghi log loại dữ liệu nhạy cảm phát hiện được, không lưu giá trị.
+
+## 5. Model AI
+
+Thư mục `ml/` huấn luyện và xuất model; frontend chỉ nạp model. Quy trình:
 
 ```bash
-# trong ml/: huấn luyện + export (xem ml/README.md) rồi
-cd frontend && npm run models:sync    # lấy ml/models/artifacts
+# trong ml/: huấn luyện và xuất model (xem ml/README.md), sau đó
+cd frontend && npm run models:sync    # lấy từ ml/models/artifacts
 ```
 
-Script chép model + `manifest.json` vào `public/models/` và fixtures parity vào `tests/fixtures/ai-real/`; **cả hai được commit** để
-clone về chạy được ngay. Model hiện có là **demo** (`manifest.json` có `demo: true`, UI hiện "mô hình DEMO"); sau khi train thật,
-chạy lệnh trên rồi commit đè. WASM của onnxruntime-web (~15 MB) nằm trong `dist/assets/` khi build; trình duyệt chỉ tải khi model URL là ONNX.
-**Không đặt file WASM vào `public/`**: ở `npm run dev` Vite không cho import file trong `public/`, AI sẽ im lặng không chạy được.
-Nếu chưa model URL nào đạt ngưỡng chất lượng, manifest ghi `meetsBar: false` và dùng LR (báo trung thực, không giấu).
+Script này sao chép model và `manifest.json` vào `public/models/`, đồng thời sao chép fixtures đối chiếu vào `tests/fixtures/ai-real/`. Cả hai nhóm tệp đều được commit để sau khi clone có thể chạy ngay. Model hiện có là model demo (`manifest.json` có `demo: true` và giao diện hiển thị "mô hình DEMO"); sau khi huấn luyện bằng dữ liệu thật, chạy lệnh trên rồi commit đè.
 
-**Parity Python↔TS** là điều kiện sống còn: nếu `normalizeText`/tokenizer/URL features lệch dù một ký tự thì model cho kết quả sai
-_một cách im lặng_. Parity được kiểm ở hai chỗ (normalize/analyze khớp tuyệt đối, xác suất ≤ 1e-5…1e-9, ONNX ≤ 1e-4,
-chạy cả onnxruntime-web thật trong Node):
+Tệp WASM của onnxruntime-web (khoảng 15 MB) nằm trong `dist/assets/` khi build, và trình duyệt chỉ tải khi model URL được chọn là ONNX. Không đặt tệp WASM vào `public/`: ở chế độ `npm run dev`, Vite không cho import tệp nằm trong `public/`, khiến AI không chạy mà không có thông báo lỗi. Nếu chưa có model URL nào đạt ngưỡng chất lượng, manifest ghi `meetsBar: false` và ứng dụng dùng LR.
 
-- `tests/ai/{text,url,onnx}.parity.test.ts` — trên fixtures **demo** (`tests/fixtures/ai-demo/`), luôn chạy; bảo vệ code featurizer TS.
-- `tests/ai/real.parity.test.ts` — trên model **thật** (`tests/fixtures/ai-real/`, do `models:sync` tạo). **Tự bỏ qua khi chưa có
-  `ai-real`**, nên `npm test` xanh lúc này _chưa_ chứng minh model thật khớp. Sau khi sync model thật, test này phải chạy (không còn "skipped")
-  và pass; nó cũng kiểm `public/models` đúng là bộ đã kiểm (không lẫn demo, không bản cũ).
+### 5.1. Đối chiếu Python và TypeScript
 
-Sửa featurizer ở một phía thì phải sửa phía kia và sinh lại fixtures.
+Nếu `normalizeText`, bộ tách từ hoặc feature URL lệch dù chỉ một ký tự, model sẽ cho kết quả sai mà không báo lỗi, nên việc đối chiếu là điều kiện bắt buộc. Việc đối chiếu yêu cầu `normalize` và `analyze` khớp tuyệt đối, xác suất sai lệch không quá 1e-5 đến 1e-9, ONNX sai lệch không quá 1e-4, và chạy cả onnxruntime-web thật trong Node. Có hai nhóm kiểm thử:
 
-**Đo hiệu năng:** mở `/bench` (không cần đăng nhập) trên **máy yếu/điện thoại thật**, bấm "Chạy đo", tải JSON.
-Dùng số p95 tệ nhất để chốt timeout (hiện `DEFAULT_AI_TIMEOUT_MS = 1500` chỉ là điểm xuất phát, ghi vào `labels.yaml: runtime.timeout_ms`).
+- `tests/ai/{text,url,onnx}.parity.test.ts` chạy trên fixtures demo (`tests/fixtures/ai-demo/`), luôn được chạy và bảo vệ mã featurizer TypeScript.
+- `tests/ai/real.parity.test.ts` chạy trên model thật (`tests/fixtures/ai-real/`, do `models:sync` tạo). Test này tự bỏ qua khi chưa có `ai-real`, nên việc `npm test` đạt khi chưa có model thật chưa chứng minh được model thật khớp. Sau khi đồng bộ model thật, test này phải chạy (không còn ở trạng thái "skipped") và đạt. Test cũng kiểm tra `public/models` đúng là bộ model đã kiểm tra, không lẫn model demo hoặc bản cũ.
 
-## Giới hạn đã biết
+Khi sửa featurizer ở một phía thì phải sửa phía còn lại và sinh lại fixtures.
 
-1. **E2EE là mock.** `MockCryptoProvider` chỉ bọc UTF-8, đánh dấu `scheme: mock-v0`; UI hiện banner đỏ. `SignalCryptoProvider` là stub ném lỗi rõ ràng.
-   Cần **PoC go/no-go** chọn thư viện Signal chạy trong browser (ứng viên `@privacyresearch/libsignal-protocol-typescript`: GPL-3.0, chưa xác minh bảo trì/kiểm toán) — xem ghi chú đầu `crypto/signalProvider.ts`. Không tự viết crypto.
-2. **Model demo.** Số đo của model demo vô nghĩa; đừng đưa vào báo cáo. Cần dữ liệu tiếng Việt thật (đã hoãn).
-3. **Chưa thử với backend thật.** Hợp đồng được đối chiếu với `openapi.yaml` + mã Go; transport được test bằng WebSocket/fetch giả. Cần chạy thử hai trình duyệt với docker-compose.
-4. **Plaintext lưu IndexedDB không mã hóa** (ai có máy/XSS đều đọc được). Mã hóa at-rest cần khóa từ mật khẩu — chưa làm. Đăng xuất xóa dữ liệu cục bộ.
-5. **Refresh token ở `sessionStorage`** (mất khi đóng tab). Đổi `WebStorageTokenStore` sang localStorage nếu muốn ghi nhớ đăng nhập — đánh đổi: XSS đọc được.
-6. Giả định `deviceId` của người nhận = 1 (một thiết bị/người); deviceId người gửi đọc từ `protocolMeta.deviceId` nếu có.
-7. Tin do chính mình gửi từ thiết bị khác không đọc lại được (mỗi tin chỉ có một ciphertext cho người nhận); hiển thị placeholder.
-8. Lịch sử cũ (`GET .../messages?before_seq`) chưa dùng: Signal không giải mã lại được tin đã qua ratchet; chỉ đồng bộ tin mới.
-9. Chưa có tìm người dùng (backend chưa có API), chỉ 1:1, tiếng Việt, 3 nhãn (phishing gộp vào scam).
-10. `listMessages` đọc cả hội thoại vào RAM — đủ cho đồ án; hội thoại rất lớn cần phân trang theo index.
+### 5.2. Đo hiệu năng
+
+Mở trang `/bench` (không cần đăng nhập) trên thiết bị cấu hình yếu hoặc điện thoại thật, chọn "Chạy đo" và tải về tệp JSON. Giá trị p95 kém nhất được dùng để chốt thời gian chờ tối đa. Giá trị hiện tại `DEFAULT_AI_TIMEOUT_MS = 1500` chỉ là điểm xuất phát; giá trị cuối cùng được ghi vào `labels.yaml` ở mục `runtime.timeout_ms`.
+
+## 6. Kiểm thử
+
+`npm test` chạy toàn bộ bộ kiểm thử bằng Vitest, và `npm run typecheck` kiểm tra kiểu ở chế độ strict. Các kiểm thử của lớp transport dùng WebSocket và `fetch` giả lập nên không cần backend.
+
+## 7. Giới hạn đã biết
+
+1. Mã hóa đầu cuối đang là bản mô phỏng. `MockCryptoProvider` chỉ bọc UTF-8 và đánh dấu `scheme: mock-v0`; giao diện hiển thị biểu ngữ cảnh báo màu đỏ. `SignalCryptoProvider` chưa được cài đặt và ném lỗi rõ ràng khi gọi. Cần thực hiện thử nghiệm khả thi để chọn thư viện Signal chạy được trong trình duyệt (ứng viên là `@privacyresearch/libsignal-protocol-typescript`, giấy phép GPL-3.0, chưa xác minh việc bảo trì và kiểm toán); xem ghi chú đầu tệp `crypto/signalProvider.ts`. Dự án không tự cài đặt thuật toán mật mã.
+2. Model AI là model demo, số đo không có ý nghĩa và không được dùng trong báo cáo. Dữ liệu tin nhắn tiếng Việt thật chưa được thu thập.
+3. Chưa chạy thử với backend thật. Hợp đồng giao tiếp được đối chiếu với `openapi.yaml` và mã Go; transport được kiểm thử bằng WebSocket và `fetch` giả lập. Cần chạy thử bằng hai trình duyệt với docker-compose.
+4. Nội dung tin nhắn dạng rõ được lưu trong IndexedDB mà không mã hóa, nên người có quyền truy cập máy hoặc khai thác được XSS đều đọc được. Mã hóa dữ liệu lưu cục bộ cần khóa sinh từ mật khẩu và chưa được thực hiện. Đăng xuất sẽ xóa dữ liệu cục bộ.
+5. Refresh token nằm ở `sessionStorage` nên mất khi đóng tab. Nếu cần ghi nhớ đăng nhập, đổi `WebStorageTokenStore` sang `localStorage`, với đánh đổi là XSS có thể đọc được token.
+6. Ứng dụng giả định `deviceId` của người nhận là 1 (mỗi người một thiết bị); `deviceId` của người gửi được đọc từ `protocolMeta.deviceId` nếu có.
+7. Tin do chính người dùng gửi từ thiết bị khác không đọc lại được, vì mỗi tin chỉ có một ciphertext cho người nhận; ứng dụng hiển thị nội dung thay thế.
+8. Lịch sử cũ (`GET .../messages?before_seq`) chưa được dùng, vì Signal không giải mã lại được tin đã qua ratchet; ứng dụng chỉ đồng bộ tin mới.
+9. Chưa có chức năng tìm người dùng (backend chưa có API). Ứng dụng chỉ hỗ trợ chat 1:1, tiếng Việt và ba nhãn (nhãn phishing được gộp vào scam).
+10. `listMessages` đọc toàn bộ hội thoại vào RAM. Cách này đủ cho đồ án; hội thoại rất lớn cần phân trang theo chỉ mục.
