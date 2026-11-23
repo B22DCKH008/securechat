@@ -39,7 +39,7 @@ func (budgetMessenger) Acknowledge(context.Context, uuid.UUID, uuid.UUID, domain
 type budgetDependencies struct{ user uuid.UUID }
 
 func (budgetDependencies) Register(context.Context, uuid.UUID, string) error   { return nil }
-func (budgetDependencies) Refresh(context.Context, uuid.UUID) error            { return nil }
+func (budgetDependencies) Refresh(context.Context, uuid.UUID, string) error    { return nil }
 func (budgetDependencies) Unregister(context.Context, uuid.UUID, string) error { return nil }
 func (budgetDependencies) Allow(context.Context, string, string) bool          { return true }
 func (d budgetDependencies) Verify(context.Context, string) (auth.Principal, error) {

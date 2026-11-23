@@ -32,11 +32,34 @@ func (d *Dedupe) FirstSeen(id uuid.UUID) bool {
 	if _, ok := d.seen[id]; ok {
 		return false
 	}
+	d.addLocked(id)
+	return true
+}
+
+// Seen reports whether id was already handled, without remembering it.
+func (d *Dedupe) Seen(id uuid.UUID) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	_, ok := d.seen[id]
+	return ok
+}
+
+// Remember records id as handled. Call it only after the event was processed
+// successfully, so a failed (poison/transient) event is never turned into a
+// dedupe success when Kafka replays it.
+func (d *Dedupe) Remember(id uuid.UUID) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if _, ok := d.seen[id]; !ok {
+		d.addLocked(id)
+	}
+}
+
+func (d *Dedupe) addLocked(id uuid.UUID) {
 	if old := d.ring[d.pos]; old != uuid.Nil {
 		delete(d.seen, old) // evict oldest (FIFO)
 	}
 	d.ring[d.pos] = id
 	d.pos = (d.pos + 1) % len(d.ring)
 	d.seen[id] = struct{}{}
-	return true
 }

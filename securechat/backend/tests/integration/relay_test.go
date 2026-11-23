@@ -40,10 +40,16 @@ func TestRelaySeesLateCommittedOutbox(t *testing.T) {
 		t.Fatal(e)
 	}
 	eventually(t, 3*time.Second, func() bool { return len(pub.snapshot()) == 2 })
+	// The publisher records before the relay marks the row; cancelling right
+	// after the second publish can legitimately abort that mark (at-least-once).
+	// Wait for the mark instead of racing it.
+	eventually(t, 3*time.Second, func() bool {
+		return number(t, f.pool, `SELECT count(*) FROM outbox WHERE published_at IS NULL`) == 0
+	})
 	cancel()
 	<-done
-	if number(t, f.pool, `SELECT count(*) FROM outbox WHERE published_at IS NULL`) != 0 {
-		t.Fatal("late committed older ID was skipped")
+	if n := len(pub.snapshot()); n != 2 {
+		t.Fatalf("late committed older ID published %d times in total, want 2 events", n)
 	}
 }
 

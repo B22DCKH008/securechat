@@ -79,6 +79,25 @@ override this baseline; record agreed scope changes here.
 
 ## Work and evidence
 
+### BE2 continuation — 2026-11-21
+
+Branch `be2`. Details: [BE2 handoff](be2-handoff.md); evidence:
+[verification-be2](verification-be2.md). Linux race with real
+PostgreSQL/Kafka/Redis: 49 cases PASS (26 unit + 23 integration), 0 skip/race.
+
+| Requirement / gate | Owner | State | Evidence / next check |
+| --- | --- | --- | --- |
+| DLQ failure replay and dedupe, KF5/KF6/KF11 (weeks 2–3) | BE2 | DONE | Per-partition completed-prefix commit, rewind on failed DLQ/retry copy; real-broker outage/restart case PASS |
+| chat.retry with backoff + jitter, KF11/RS36 (week 3 SHOULD) | BE2 | DONE | Retry group per instance, DLQ after max attempts; unit cases |
+| Consumer lag metric, KF9/INF4 (week 3) | BE2 | DONE | `securechat_kafka_consumer_lag`; real-broker lag assertion; runtime metric 0 after load |
+| Presence per-connection TTL and dead-instance cleanup, RS14/RS29 (week 3) | BE2 | DONE | Redis 7.4 HEXPIRE + instance index; real-Redis case |
+| DELIVERY_TRANSPORT=redis publisher, KF16 (week 3 SHOULD) | BE2 | DONE (experiment path) | Real-Redis publish/subscribe case; EXP13 comparison not yet measured |
+| k6 scripts with real auth, EXP1/EXP3/EXP5 | BE2 | DOING | 5-VU cross-instance run 0 missing/duplicate; 50-VU storm 100 %; 10/50/100 VU and 1 vs 2 instances pending |
+| EXP12 with live WS recipients, EXP2, EXP13 | BE2 | TODO | Needs equal-load runs; BE1 outage evidence covers durable acceptance |
+| Integration acceptance with FE1 | BE2 + FE1 | TODO | Reconnect/backoff, resync, Signal, plaintext inspection |
+| Group chat backend, pairwise fan-out, RS31/RS34/KF17 (plan §D: EXPERIMENT/BONUS, user-requested 2026-11-22) | BE2 | DONE (backend) | Migration 000004, group REST, per-recipient copies, system messages, departures; service, concurrency and real Kafka two-instance WS cases PASS ([verification](verification-be2.md#group-chat-2026-11-22)) |
+| Group chat client, load measurement RS33, Sender Keys RS35 | FE1 / BE2 | TODO | FE1 encrypts N copies; k6 group fan-out not measured |
+
 ### BE2 handoff preparation — 2026-11-12
 
 | Requirement / gate | Owner | State | Evidence / next check |

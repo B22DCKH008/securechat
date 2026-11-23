@@ -40,8 +40,9 @@ func GetOrCreateDirect(ctx context.Context, tx pgx.Tx, a, b uuid.UUID) (domain.C
 
 func ListConversations(ctx context.Context, db DBTX, userID uuid.UUID) ([]domain.Conversation, error) {
 	rows, err := db.Query(ctx, `
-		SELECT c.id, c.kind, c.last_seq, c.created_at,
-		       ARRAY(SELECT m2.user_id FROM conversation_members m2 WHERE m2.conversation_id = c.id)
+		SELECT c.id, c.kind, c.title, c.created_by, c.last_seq, m.joined_seq, c.created_at,
+		       ARRAY(SELECT m2.user_id FROM conversation_members m2 WHERE m2.conversation_id = c.id
+		             ORDER BY m2.joined_at, m2.user_id)
 		FROM conversations c
 		JOIN conversation_members m ON m.conversation_id = c.id
 		WHERE m.user_id = $1
@@ -53,7 +54,7 @@ func ListConversations(ctx context.Context, db DBTX, userID uuid.UUID) ([]domain
 	var out []domain.Conversation
 	for rows.Next() {
 		var c domain.Conversation
-		if err := rows.Scan(&c.ID, &c.Kind, &c.LastSeq, &c.CreatedAt, &c.Members); err != nil {
+		if err := rows.Scan(&c.ID, &c.Kind, &c.Title, &c.CreatedBy, &c.LastSeq, &c.JoinedSeq, &c.CreatedAt, &c.Members); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

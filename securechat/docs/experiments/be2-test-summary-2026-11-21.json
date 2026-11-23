@@ -1,0 +1,258 @@
+{
+ "date": "2026-11-21",
+ "command": "docker compose -p securechat-be2 -f docker-compose.yml -f compose.test.yml run --rm be1-test",
+ "goTest": "go test -race -count=1 -tags=integration -timeout=900s -v ./...",
+ "go": "1.27.3 linux/amd64 (golang:1.27.3)",
+ "host": "Linux 6.14, 4 vCPU, 7.7 GiB RAM, GOMAXPROCS=2 GOFLAGS=-p=1 GOMEMLIMIT=256MiB",
+ "exit": 0,
+ "skipped": 0,
+ "dataRaces": 0,
+ "integrationPackageSeconds": 188.122,
+ "cases": [
+  {
+   "name": "TestIssueVerify",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestVerifyRejectsWrongSecretAndExpired",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestWebSocketBudgetConfiguration",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRejectUnsafeAuthAndRelayConfiguration",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRetryLagAndPresenceConfiguration",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestDedupe",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestDLQFailureKeepsPoisonOffsetAndReplays",
+   "status": "PASS",
+   "seconds": 0.01
+  },
+  {
+   "name": "TestRestartAfterDLQFailureReplaysFromCommit",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestTransientWithoutRetryTopicBlocksInPlace",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestTransientGoesThroughRetryTopicThenDLQ",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRetryPublishFailureBlocksSource",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRetryDelayBounds",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestWithHeadersDoesNotAliasSource",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRunAllowsRebalanceOnExit",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRouterPushesOnceDespiteDuplicateEvent",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestRouterPoisonIsPermanent",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestEnvelopeRoundTrip",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestDecodeRejectsMissingID",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestDecodeIgnoresUnknownFields",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestWebSocketCiphertextAndFrameBudgets",
+   "status": "PASS",
+   "seconds": 0.12
+  },
+  {
+   "name": "TestHubConnectionLimit",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestPushOnlyToTargetUser",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestDecodeRejectsUnknownTrailingAndOversizedJSON",
+   "status": "PASS",
+   "seconds": 0.05
+  },
+  {
+   "name": "TestCursorQueryRejectsMalformedAndRepeatedValues",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestAccessLogOmitsClientPathQueryAndBody",
+   "status": "PASS",
+   "seconds": 0.01
+  },
+  {
+   "name": "TestRedactsSensitiveFields",
+   "status": "PASS",
+   "seconds": 0.0
+  },
+  {
+   "name": "TestDLQOutageDoesNotCommitPastPoison",
+   "status": "PASS",
+   "seconds": 7.82
+  },
+  {
+   "name": "TestPresencePerConnectionTTLAndInstanceCleanup",
+   "status": "PASS",
+   "seconds": 2.67
+  },
+  {
+   "name": "TestRedisTransportPublisherToSubscriber",
+   "status": "PASS",
+   "seconds": 0.28
+  },
+  {
+   "name": "TestWebSocketLargeCiphertextPersistsAndRetriesOverREST",
+   "status": "PASS",
+   "seconds": 14.07
+  },
+  {
+   "name": "TestRetryJSONBNumbersAndTimestampPrecision",
+   "status": "PASS",
+   "seconds": 2.44
+  },
+  {
+   "name": "TestMessagePageByteBudgetAndInputBounds",
+   "status": "PASS",
+   "seconds": 3.94
+  },
+  {
+   "name": "TestPasswordlessAccountAndKeyDeviceScope",
+   "status": "PASS",
+   "seconds": 25.37
+  },
+  {
+   "name": "TestIdempotentRetryCreatesOneMessage",
+   "status": "PASS",
+   "seconds": 2.52
+  },
+  {
+   "name": "TestSeqIsGaplessUnderConcurrentWriters",
+   "status": "PASS",
+   "seconds": 2.91
+  },
+  {
+   "name": "TestSendAndReceiptRollback",
+   "status": "PASS",
+   "seconds": 2.95
+  },
+  {
+   "name": "TestOfflineRecipientSyncsAfterReconnect",
+   "status": "PASS",
+   "seconds": 3.11
+  },
+  {
+   "name": "TestReceiptsMonotonicAndLateSync",
+   "status": "PASS",
+   "seconds": 2.9
+  },
+  {
+   "name": "TestNonMemberCannotReadOrSend",
+   "status": "PASS",
+   "seconds": 2.78
+  },
+  {
+   "name": "TestReceiptMigrationBackfillsExistingState",
+   "status": "PASS",
+   "seconds": 2.62
+  },
+  {
+   "name": "TestAuthRotationLogoutAndRevocation",
+   "status": "PASS",
+   "seconds": 30.79
+  },
+  {
+   "name": "TestRefreshConcurrencyRevokesFamily",
+   "status": "PASS",
+   "seconds": 13.81
+  },
+  {
+   "name": "TestHTTPContractsAndSessionWebSocket",
+   "status": "PASS",
+   "seconds": 20.47
+  },
+  {
+   "name": "TestRelayCrashBetweenPublishAndMarkIsDeduped",
+   "status": "PASS",
+   "seconds": 4.43
+  },
+  {
+   "name": "TestRelayRetryAndLeadership",
+   "status": "PASS",
+   "seconds": 4.14
+  },
+  {
+   "name": "TestCrossInstanceDelivery",
+   "status": "PASS",
+   "seconds": 26.3
+  },
+  {
+   "name": "TestRelaySeesLateCommittedOutbox",
+   "status": "PASS",
+   "seconds": 3.07
+  },
+  {
+   "name": "TestRelayLockLossCancelsPublish",
+   "status": "PASS",
+   "seconds": 2.57
+  },
+  {
+   "name": "TestKafkaOutageBacklogDrains",
+   "status": "PASS",
+   "seconds": 5.02
+  }
+ ]
+}
