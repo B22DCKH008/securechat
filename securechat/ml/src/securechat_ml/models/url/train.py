@@ -26,8 +26,22 @@ def used_features(cfg: dict) -> list[str]:
 
 
 def featurize(urls: list[str], names: list[str]) -> np.ndarray:
+    """Mỗi URL chỉ tính extract_features MỘT lần rồi chọn cột (bản cũ tính lại 26 lần/URL, chậm gấp ~26 lần)."""
     idx = [FEATURE_NAMES.index(n) for n in names]
-    return np.array([[extract_features(u)[i] for i in idx] for u in urls], dtype=np.float64)
+    if not urls:
+        return np.zeros((0, len(idx)), dtype=np.float64)
+    return np.array([extract_features(u) for u in urls], dtype=np.float64)[:, idx]
+
+
+def select_model(results: dict, order: list[str]) -> tuple[str | None, str | None]:
+    """Chọn model CHỈ dựa trên VALIDATION: đơn giản nhất (theo thứ tự `order`) đạt ngưỡng trên validation.
+
+    Trả (selected, val_selected). `val_selected` là model validation chọn. `selected` chỉ khác None khi model đó CŨNG đạt ngưỡng
+    trên test chính (test dùng để XÁC NHẬN, không để chọn). None => bên FE dùng LR và ghi meetsBar=false (báo cáo trung thực).
+    """
+    val_selected = next((m for m in order if results[m]["meets_bar_on_validation"]), None)
+    selected = val_selected if val_selected and results[val_selected]["meets_bar_on_primary_test"] else None
+    return selected, val_selected
 
 
 def make_model(name: str, mcfg: dict, seed: int):
@@ -80,13 +94,15 @@ def train_url(paths: Paths) -> dict:
                 "ci95": bootstrap_ci(Y[sname], s, th["threshold"], n=n_boot, seed=seed),
                 "recall_at_fpr_oracle": recall_at_fpr_oracle(Y[sname], s, max_fpr),
             }
-        pt = per[primary_test]
-        meets = bool(pt["recall"] >= target_recall and pt["fpr"] <= max_fpr) if not (np.isnan(pt["recall"]) or np.isnan(pt["fpr"])) else False
-        results[mname] = {"fit_seconds": round(fit_s, 2), "threshold": th, "sets": per, "meets_bar_on_primary_test": meets}
+        def _meets(r):
+            return bool(r["recall"] >= target_recall and r["fpr"] <= max_fpr) if not (np.isnan(r["recall"]) or np.isnan(r["fpr"])) else False
+
+        results[mname] = {"fit_seconds": round(fit_s, 2), "threshold": th, "sets": per,
+                          "meets_bar_on_validation": _meets(per[val_name]), "meets_bar_on_primary_test": _meets(per[primary_test])}
         fitted[mname] = {"model": model, "threshold": th["threshold"]}
 
-    # chọn model: đạt ngưỡng chất lượng + đơn giản nhất (thứ tự trong config); xác nhận kích thước thật ở bước export
-    selected = next((m for m in cfg["models"] if results[m]["meets_bar_on_primary_test"]), None)
+    # chọn model theo VALIDATION (không dùng test để chọn); test chỉ xác nhận. Kích thước thật xác nhận ở bước export
+    selected, val_selected = select_model(results, list(cfg["models"]))
     adir = paths.artifacts_dir("url")
     adir.mkdir(parents=True, exist_ok=True)
     joblib.dump({"models": fitted, "featureNames": names, "modelVersion": version, "selected": selected}, adir / "models.joblib")
@@ -97,7 +113,11 @@ def train_url(paths: Paths) -> dict:
         "primary_test": primary_test,
         "quality_bar": {"recall>=": target_recall, "fpr<=": max_fpr},
         "selected_model": selected,
-        "selected_note": "Chọn model đơn giản nhất đạt ngưỡng; nếu null = chưa model nào đạt, báo cáo trung thực." if selected is None else "Đơn giản nhất trong các model đạt ngưỡng; so sánh thêm kích thước/latency ở bước export.",
+        "validation_selected_model": val_selected,
+        "selected_note": (
+            "Chọn trên VALIDATION: model đơn giản nhất đạt ngưỡng; test chỉ để xác nhận. null = không model nào vừa đạt trên validation "
+            "vừa được test xác nhận => FE dùng LR với meetsBar=false (báo cáo trung thực)."
+        ),
         "models": results,
     }
     write_json(paths.reports_dir() / "url_metrics.json", out)

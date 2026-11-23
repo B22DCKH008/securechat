@@ -77,6 +77,11 @@ PhishVN: **schema chưa được kiểm tra** – loader tự dò cột `url / l
 - Tin nhắn: precision ≥ 0.90 tại recall ≥ 0.80 trên test gán tay.
 - URL: recall ≥ 0.90 tại FPR ≤ 1% trên `test_cross` (PhishVN gold/silver).
   Báo cáo có CI 95% bootstrap, ma trận nhầm lẫn, PR-AUC; nếu không đạt thì báo cáo trung thực (`meets_bar... = false`).
+- URL, chọn model: model đơn giản nhất (thứ tự `models:` trong config) đạt ngưỡng trên **validation** (`val_cross`, hoặc `val_in` nếu
+  `val_cross` chỉ có một lớp). `test_cross` **không dùng để chọn**, chỉ xác nhận: nếu model do validation chọn không đạt trên test thì
+  `selected_model = null` (FE dùng LR, `meetsBar=false`); `validation_selected_model` vẫn ghi model validation đã chọn.
+- URL, `val_cross` có thể rất ít mẫu phishing (PhishVN gold/silver theo thời gian: validation chỉ ~24 mẫu ở v3.1.0). Khi đó nới riêng
+  validation bằng `phishvn.val_tiers` (vd thêm `bronze`; chỉ dùng chọn ngưỡng/model, `test_cross` vẫn chỉ gold/silver) và nói rõ trong báo cáo.
 
 ## Hợp đồng parity Python ↔ TypeScript (AI16)
 

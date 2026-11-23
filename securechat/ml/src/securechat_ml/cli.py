@@ -102,8 +102,8 @@ def cmd_train_url(a, paths):
     from securechat_ml.models.url.train import train_url
 
     r = train_url(paths)
-    _p({"modelVersion": r["modelVersion"], "validation_set": r["validation_set"], "primary_test": r["primary_test"], "selected_model": r["selected_model"],
-        "per_model": {m: {"meets_bar": v["meets_bar_on_primary_test"], "primary": {k: v["sets"][r["primary_test"]][k] for k in ("precision", "recall", "fpr", "pr_auc")}} for m, v in r["models"].items()}})
+    _p({"modelVersion": r["modelVersion"], "validation_set": r["validation_set"], "primary_test": r["primary_test"], "selected_model": r["selected_model"], "validation_selected_model": r["validation_selected_model"],
+        "per_model": {m: {"meets_bar_val": v["meets_bar_on_validation"], "meets_bar_test": v["meets_bar_on_primary_test"], "primary": {k: v["sets"][r["primary_test"]][k] for k in ("precision", "recall", "fpr", "pr_auc")}} for m, v in r["models"].items()}})
 
 
 def cmd_sweep_message(a, paths):

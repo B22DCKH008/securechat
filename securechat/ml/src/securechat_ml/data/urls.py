@@ -121,7 +121,8 @@ def build_url_splits(phiusiil: pd.DataFrame | None, phishvn: pd.DataFrame | None
         trt = pv.get("train_tiers") or []
         def tier_ok(df, tiers):  # tier 'unknown' (không có cột tier) thì cho qua
             return df[df["tier"].isin(tiers) | (df["tier"] == "unknown")] if tiers else df
-        sets["val_cross"] = tier_ok(parts["val"], ev)
+        vt = pv.get("val_tiers") or ev  # validation có thể rộng hơn test (vd thêm bronze) để đủ mẫu chọn ngưỡng; TEST luôn dùng eval_tiers
+        sets["val_cross"] = tier_ok(parts["val"], vt)
         sets["test_cross"] = tier_ok(parts["test"], ev)
         if cfg.get("use_phishvn_train", True):
             train_parts.append(tier_ok(parts["train"], trt))
