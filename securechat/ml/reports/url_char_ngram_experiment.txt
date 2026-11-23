@@ -1,0 +1,16 @@
+vectorize: 12.7s | từ vựng 50,000 | n-gram 3-5 | validation=val_cross | test chính=test_cross
+  C=0.3   fit   3.3s  val recall@FPR<=1% = 0.201 (val FPR 0.0096)
+  C=1     fit   3.8s  val recall@FPR<=1% = 0.213 (val FPR 0.0096)
+  C=3     fit   5.4s  val recall@FPR<=1% = 0.225 (val FPR 0.0096)
+  C=10    fit   6.9s  val recall@FPR<=1% = 0.195 (val FPR 0.0096)
+
+Chọn C=3 theo VALIDATION (recall 0.225). Ngưỡng 0.9363
+
+tập             n  phish  recall    [CI95 recall]    fpr   prec pr_auc  recall@fpr1%(oracle)
+val_in      23175   9694   0.579 [0.570,0.589]   0.001  0.999  0.934        0.707
+test_in     23175   9694   0.497 [0.487,0.507]   0.001  0.998  0.934        0.710
+val_cross    4452   2891   0.225 [0.210,0.240]   0.010  0.977  0.915        0.225
+test_cross   4311    486   0.128 [0.096,0.158]   0.004  0.785  0.619        0.228
+
+Ước lượng kích thước JSON gửi FE: ~1.5 MB (từ vựng x ~30 byte/mục; thô)
+Quy tắc chốt trước: val recall 0.225 < 0.40 => KHÔNG đủ lợi thế, giữ hướng báo cáo trung thực
