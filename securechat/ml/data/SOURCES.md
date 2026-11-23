@@ -6,8 +6,8 @@
 
 | Nguồn | Link | Giấy phép | Ngày tải | Phiên bản/hash | Dùng cho | Ghi chú |
 |---|---|---|---|---|---|---|
-| PhiUSIIL Phishing URL (Prasad & Chandra) | https://archive.ics.uci.edu/dataset/967 | CC BY 4.0 (theo trang UCI) | 11/2026 | UCI id 967, đăng 3/3/2024; 235.795 URL (134.850 hợp lệ / 100.945 phishing); hash ở mục Checksum | train + val/test trong miền | `label` 1 = hợp lệ, 0 = phishing; chỉ dùng cột URL |
-| PhishVN (Vu Thai Nguyen, University of Transport and Communications) | https://data.mendeley.com/datasets/b97hxbxtpd/4 | CC BY 4.0 (theo trang Mendeley) | 11/2026 | v3.1.0 = Mendeley Data V4, đăng 18/08/2026, DOI 10.17632/b97hxbxtpd.4; file dữ liệu giống hệt v3; hash ở mục Checksum | train (gold/silver) + val (gold/silver/bronze) + test chéo miền (gold/silver) | dùng 3 file `splits/url_{train,val,test}.csv`, gộp bằng `scripts/merge_phishvn_splits.py`; còn 36.261 URL sau khi bỏ trùng |
+| PhiUSIIL Phishing URL (Prasad & Chandra) | https://archive.ics.uci.edu/dataset/967 | CC BY 4.0 (theo trang UCI) | / | UCI id 967, đăng 3/3/2024; 235.795 URL (134.850 hợp lệ / 100.945 phishing); hash ở mục Checksum | train + val/test trong miền | `label` 1 = hợp lệ, 0 = phishing; chỉ dùng cột URL |
+| PhishVN (Vu Thai Nguyen, University of Transport and Communications) | https://data.mendeley.com/datasets/b97hxbxtpd/4 | CC BY 4.0 (theo trang Mendeley) | / | v3.1.0 = Mendeley Data V4, đăng 18/08/2026, DOI 10.17632/b97hxbxtpd.4; file dữ liệu giống hệt v3; hash ở mục Checksum | train (gold/silver) + val (gold/silver/bronze) + test chéo miền (gold/silver) | dùng 3 file `splits/url_{train,val,test}.csv`, gộp bằng `scripts/merge_phishvn_splits.py`; còn 36.261 URL sau khi bỏ trùng |
 
 ## Checksum (SHA-256 của file đã tải)
 
