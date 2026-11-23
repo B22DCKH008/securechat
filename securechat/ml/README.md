@@ -1,131 +1,138 @@
-# SecureChat – `ml/` (huấn luyện, đánh giá, xuất model)
+# SecureChat: phân hệ ml (huấn luyện, đánh giá, xuất model)
 
-Khung huấn luyện cho 2 model chạy **trên thiết bị** (client): phát hiện tin nhắn lừa đảo/spam (tiếng Việt) và URL độc hại.
-Toàn bộ pipeline chạy được ngay trên **dữ liệu demo** để thử đường ống; khi có dữ liệu thật chỉ cần thả file vào `data/raw/`.
+Thư mục `ml/` chứa mã huấn luyện, đánh giá và xuất hai mô hình chạy trên thiết bị người dùng: mô hình phát hiện tin nhắn lừa đảo và spam bằng tiếng Việt, và mô hình phát hiện URL độc hại. Toàn bộ quy trình chạy được trên dữ liệu demo để kiểm tra đường ống. Khi có dữ liệu thật, đặt các tệp vào `data/raw/` rồi chạy lại các lệnh ở mục 3.
 
-> Số đo trên dữ liệu demo **vô nghĩa** (ít, sinh theo khuôn). Không dùng làm kết quả trong báo cáo.
+Số đo trên dữ liệu demo không có ý nghĩa thống kê (ít mẫu, sinh theo khuôn) và không được dùng làm kết quả báo cáo. Đầu ra của chế độ demo nằm riêng tại `data/splits/demo/`, `models/demo_artifacts/` và `reports/demo/`.
 
-## Cài đặt & chạy thử
+## 1. Cài đặt và chạy thử
 
-Cần Python 3.10–3.12 (bản quá mới có thể chưa có wheel cho `onnxruntime`/`skl2onnx`). Không cần `make`.
+Yêu cầu Python từ 3.10 đến 3.12. Các bản mới hơn có thể chưa có gói biên dịch sẵn cho `onnxruntime` và `skl2onnx`. Không bắt buộc phải cài `make`.
 
-**Windows (PowerShell)** – trong thư mục `ml/`:
+Trên Windows (PowerShell), tại thư mục `ml/`:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # nếu bị chặn: Set-ExecutionPolicy -Scope Process Bypass
 pip install -r requirements.txt
-pip install -e .                       # để gọi `python -m securechat_ml.cli` mà không cần đặt PYTHONPATH
-python -m pytest -q                    # kỳ vọng: 30 passed
-python -m securechat_ml.cli demo-all   # cả đường ống trên dữ liệu demo
+pip install -e .                       # cho phép gọi python -m securechat_ml.cli mà không đặt PYTHONPATH
+python -m pytest -q                    # kết quả mong đợi: 67 passed
+python -m securechat_ml.cli demo-all   # chạy toàn bộ đường ống trên dữ liệu demo
 python -m securechat_ml.cli demo-clean # xóa đầu ra demo
 ```
 
-**Linux/macOS/WSL**: như trên với `source .venv/bin/activate`; hoặc dùng `make test`, `make demo`, `make demo-clean`.
+Trên Linux, macOS hoặc WSL, dùng `source .venv/bin/activate` để kích hoạt môi trường ảo, hoặc dùng `make test`, `make demo`, `make demo-clean`.
 
-Mọi lệnh khác: `python -m securechat_ml.cli [--demo] <lệnh>` (xem bảng dưới). Nếu thấy lỗi font tiếng Việt: `$env:PYTHONUTF8=1`.
-File CSV lưu từ Excel (có BOM) đọc được; nên lưu dạng "CSV UTF-8".
+Cú pháp chung của các lệnh là `python -m securechat_ml.cli [--demo] <lệnh>`. Tham số `--demo` đặt trước tên lệnh để dùng dữ liệu demo. Nếu chưa chạy `pip install -e .` thì đặt biến môi trường `PYTHONPATH=src`. Mỗi lệnh in kết quả dạng JSON; số liệu chi tiết nằm trong `reports/*.json`.
 
-> Số đo trên dữ liệu demo **vô nghĩa** (ít, sinh theo khuôn). Không dùng làm kết quả trong báo cáo.
-> Đầu ra demo nằm ở `data/splits/demo/`, `models/demo_artifacts/`, `reports/demo/` (tách hẳn khỏi dữ liệu thật).
+Nếu tiếng Việt hiển thị lỗi font trên Windows, đặt `$env:PYTHONUTF8=1`. Tệp CSV lưu từ Excel (có BOM) vẫn đọc được, nhưng nên lưu theo định dạng "CSV UTF-8".
 
-## Luồng làm việc với dữ liệu thật
+## 2. Dữ liệu đầu vào
 
-| Bước | Lệnh                                                        | Đọc                                                            | Ghi                                                                                  |
-| ---- | ----------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| 0    | `validate-messages --file data/raw/messages_train_pool.csv` | CSV tin nhắn                                                   | in báo cáo lỗi (exit 1 nếu có lỗi)                                                   |
-| 1    | `prepare-messages`                                          | `data/raw/messages_train_pool.csv`, `messages_handlabeled.csv` | `data/splits/messages/{train,val,test,test_hard}.csv` + `split_manifest.json`        |
-| 2    | `train-message`                                             | splits                                                         | `models/artifacts/message/`, `reports/message_metrics.json`                          |
-| 3    | `sweep-message`                                             | splits                                                         | `reports/optimization_message.json` (AI11: kích thước/F1/độ trễ theo `max_features`) |
-| 4    | `prepare-urls`                                              | PhiUSIIL + PhishVN                                             | `data/splits/urls/{train,val_in,test_in,val_cross,test_cross}.csv`                   |
-| 5    | `train-url`                                                 | splits                                                         | `models/artifacts/url/models.joblib`, `reports/url_metrics.json`                     |
-| 6    | `export-message`, `export-url`                              | artifacts                                                      | JSON/ONNX + fixtures parity                                                          |
-| 7    | `parity`                                                    | artifacts                                                      | `reports/parity_python.json` (Python tự đối chiếu bản export)                        |
+### 2.1. Tin nhắn
 
-Chạy: `python -m securechat_ml.cli <lệnh>` (thêm `--demo` trước tên lệnh để dùng dữ liệu demo; chưa `pip install -e .` thì đặt `PYTHONPATH=src`). Mỗi lệnh in JSON; đọc thêm `reports/*.json`.
+Tệp `data/raw/messages_train_pool.csv` dùng cho huấn luyện và validation, gồm cả dữ liệu thật và dữ liệu tổng hợp:
 
-## Định dạng dữ liệu
+| Cột | Bắt buộc | Ghi chú |
+|---|---|---|
+| `text` | Có | Nội dung tin nhắn |
+| `label` | Có | `benign`, `spam` hoặc `scam` (xem `configs/labels.yaml`) |
+| `source` | Không | `real` hoặc `synthetic`, mặc định `unknown` |
+| `group` | Không | Mã kịch bản hoặc mẫu tin; các tin cùng `group` luôn nằm trong cùng một tập |
+| `lang` | Không | Mặc định `vi` |
 
-**`data/raw/messages_train_pool.csv`** (train/validation; real + synthetic):
+Tệp `data/raw/messages_handlabeled.csv` là tập test, do người thực hiện tự gán nhãn, không sinh bằng AI. Các cột gồm `text`, `label` và tùy chọn `hard`, `note`. Giá trị `hard=1` đánh dấu các ca khó (không dấu, teencode, tin hợp lệ có hình thức giống lừa đảo); các ca này được báo cáo riêng ở tập `test_hard`.
 
-| cột      | bắt buộc | ghi chú                                                          |
-| -------- | -------- | ---------------------------------------------------------------- |
-| `text`   | ✔        | nội dung tin                                                     |
-| `label`  | ✔        | `benign` \| `spam` \| `scam` (xem `configs/labels.yaml`)         |
-| `source` |          | `real` \| `synthetic` (mặc định `unknown`)                       |
-| `group`  |          | id template/kịch bản; các tin cùng `group` luôn nằm cùng một tập |
-| `lang`   |          | mặc định `vi`                                                    |
+### 2.2. URL
 
-**`data/raw/messages_handlabeled.csv`** = TEST, **bạn tự gán nhãn tay**, không sinh bằng AI: `text,label[,hard,note]`. `hard=1` cho ca khó (không dấu, teencode, tin hợp lệ trông giống lừa đảo…) → báo cáo riêng ở `test_hard`.
+PhiUSIIL: tệp `data/raw/PhiUSIIL_Phishing_URL_Dataset.csv` (UCI, mã 967), sử dụng hai cột `URL` và `label`. Trong bộ này `label` bằng 1 là URL hợp lệ và bằng 0 là phishing; bộ nạp dữ liệu đã đảo lại theo quy ước nội bộ (1 là phishing).
 
-**URL**: `data/raw/PhiUSIIL_Phishing_URL_Dataset.csv` (UCI id 967; cột `URL`,`label`; **label 1 = hợp lệ, 0 = phishing**, loader đã đảo) và `data/raw/phishvn/<file>.csv`.
-PhishVN: **schema chưa được kiểm tra** – loader tự dò cột `url / label / label_confidence (gold|silver|bronze) / split`; nếu sai sẽ báo lỗi kèm danh sách cột thật → sửa `phishvn:` trong `configs/url.yaml` (`url_col`, `label_col`, `tier_col`, `split_col`) và tên file ở `files.phishvn`. Nguồn & giấy phép: xem `data/SOURCES.md`.
+PhishVN v3.1.0 (Mendeley Data, bản 4): ba tệp `splits/url_{train,val,test}.csv` được đặt dưới `data/raw/phishvn/` và gộp bằng lệnh `python scripts/merge_phishvn_splits.py` thành `data/raw/phishvn/phishvn.csv` (có thêm cột `split`). Các cột được sử dụng là `url`, `label` (`phishing` hoặc `benign`), `tier` (`gold`, `silver`, `bronze`) và `split`. Bộ nạp tự dò tên cột. Nếu không khớp, bộ nạp báo lỗi kèm danh sách cột thực tế; khi đó chỉnh mục `phishvn:` trong `configs/url.yaml` (`url_col`, `label_col`, `tier_col`, `split_col`) và tên tệp ở `files.phishvn`.
 
-## Quy tắc chống leakage (được test trong `tests/test_leakage.py`)
+Nguồn và giấy phép của từng bộ dữ liệu được ghi tại `data/SOURCES.md`.
 
-- Tin nhắn gần giống nhau (cosine ≥ 0.85) hoặc cùng `group` → cùng nhóm → không bị tách sang tập khác.
-- Tin train gần giống tin **test gán tay** bị loại khỏi train.
-- Dữ liệu `synthetic` **không bao giờ** vào test; chỉ vào validation khi thiếu tin `real` (có cảnh báo trong manifest).
-- URL: chia theo **domain đăng ký** (`registered_domain`); mọi domain xuất hiện ở val/test bị loại khỏi train; tầng `bronze` không vào test chéo miền.
-- TF-IDF chỉ `fit` trên train; ngưỡng chọn trên **validation**, test chỉ đo một lần ở ngưỡng đó.
-- URL: không dùng `is_https` (artefact thu thập); `has_www` có thể loại qua `features.exclude`.
+## 3. Quy trình xử lý
 
-## Chọn ngưỡng & đạt/không đạt
+| Bước | Lệnh | Đầu vào | Đầu ra |
+|---|---|---|---|
+| 0 | `validate-messages --file data/raw/messages_train_pool.csv` | CSV tin nhắn | Báo cáo lỗi, thoát với mã 1 nếu có lỗi |
+| 1 | `prepare-messages` | `data/raw/messages_train_pool.csv`, `messages_handlabeled.csv` | `data/splits/messages/{train,val,test,test_hard}.csv` và `split_manifest.json` |
+| 2 | `train-message` | Các tập đã chia | `models/artifacts/message/`, `reports/message_metrics.json` |
+| 3 | `sweep-message` | Các tập đã chia | `reports/optimization_message.json` (AI11: kích thước, F1 và độ trễ theo `max_features`) |
+| 4 | `prepare-urls` | PhiUSIIL và PhishVN | `data/splits/urls/{train,val_in,test_in,val_cross,test_cross}.csv` và `split_manifest.json` |
+| 5 | `train-url` | Các tập đã chia | `models/artifacts/url/models.joblib`, `reports/url_metrics.json` |
+| 6 | `export-message`, `export-url` | Model đã huấn luyện | Tệp JSON hoặc ONNX và fixtures đối chiếu |
+| 7 | `parity` | Model đã huấn luyện | `reports/parity_python.json` (Python tự đối chiếu với bản xuất) |
 
-Đặt trong `configs/*.yaml` **trước khi xem kết quả** (đây là đề xuất, nhóm chốt):
+## 4. Quy tắc chống rò rỉ dữ liệu
 
-- Tin nhắn: precision ≥ 0.90 tại recall ≥ 0.80 trên test gán tay.
-- URL: recall ≥ 0.90 tại FPR ≤ 1% trên `test_cross` (PhishVN gold/silver).
-  Báo cáo có CI 95% bootstrap, ma trận nhầm lẫn, PR-AUC; nếu không đạt thì báo cáo trung thực (`meets_bar... = false`).
-- URL, chọn model: model đơn giản nhất (thứ tự `models:` trong config) đạt ngưỡng trên **validation** (`val_cross`, hoặc `val_in` nếu
-  `val_cross` chỉ có một lớp). `test_cross` **không dùng để chọn**, chỉ xác nhận: nếu model do validation chọn không đạt trên test thì
-  `selected_model = null` (FE dùng LR, `meetsBar=false`); `validation_selected_model` vẫn ghi model validation đã chọn.
-- URL, `val_cross` có thể rất ít mẫu phishing (PhishVN gold/silver theo thời gian: validation chỉ ~24 mẫu ở v3.1.0). Khi đó nới riêng
-  validation bằng `phishvn.val_tiers` (vd thêm `bronze`; chỉ dùng chọn ngưỡng/model, `test_cross` vẫn chỉ gold/silver) và nói rõ trong báo cáo.
+Các quy tắc sau được kiểm tra trong `tests/test_leakage.py`.
 
-## Hợp đồng parity Python ↔ TypeScript (AI16)
+- Các tin nhắn gần giống nhau (độ tương đồng cosine từ 0.85 trở lên) hoặc cùng `group` được gom thành một nhóm và không bị tách sang tập khác.
+- Tin trong tập train gần giống tin của tập test gán tay bị loại khỏi train.
+- Dữ liệu `synthetic` không được đưa vào test. Dữ liệu này chỉ vào validation khi thiếu tin `real`, và `split_manifest.json` ghi cảnh báo trong trường hợp đó.
+- URL được chia theo tên miền đăng ký (`registered_domain`). Mọi tên miền xuất hiện ở val hoặc test đều bị loại khỏi train. Tầng `bronze` không được đưa vào test chéo miền.
+- TF-IDF chỉ được `fit` trên tập train. Ngưỡng quyết định được chọn trên validation, còn test chỉ đo một lần tại ngưỡng đó.
+- Đặc trưng `is_https` không được dùng vì phản ánh cách thu thập dữ liệu. Đặc trưng `has_www` được loại qua `features.exclude`.
 
-Client **không** chạy Python. `export-*` tạo ra:
+## 5. Tiêu chí chọn ngưỡng và đánh giá đạt hay không đạt
 
-| File (trong `models/artifacts/...`)    | Dùng cho                                                                                                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `message/message_model.json`           | vocab, idf, coef, intercept, ngưỡng, thông số featurizer → TS tự tính TF-IDF + LR                                        |
-| `message/message_rules.json`           | luật regex (Nấc 0)                                                                                                       |
-| `message/message_parity_fixtures.json` | ca kiểm tra: `normalize` (chuỗi khớp tuyệt đối), `analyze` (danh sách feature khớp tuyệt đối), `predict` (sai số ≤ 1e-5) |
-| `url/url_spec.json`                    | hằng số + danh sách feature URL                                                                                          |
-| `url/url_lr.json`                      | LR dạng JSON (TS tự tính)                                                                                                |
-| `url/url_gbdt.onnx`, `url_rf.onnx`     | tree model chạy bằng onnxruntime-web (WASM) nếu được chọn                                                                |
-| `url/url_parity_fixtures.json`         | `allFeatures` (≤ 1e-9), `probabilities` (LR ≤ 1e-6, ONNX ≤ 1e-4)                                                         |
+Các tiêu chí được khai báo trong `configs/*.yaml` trước khi xem kết quả đo. Giá trị cuối cùng do nhóm thực hiện quyết định.
 
-Việc cần làm phía TS (chưa có trong gói này): cài đặt `normalizeText`, `analyze`, `extractUrlFeatures` **giống hệt** `src/securechat_ml/features/{text,url}.py`, rồi viết test đọc các fixtures ở trên. Lưu ý các điểm dễ lệch: `String.prototype.normalize('NFD')`, `đ→d`, regex `[0-9]{6,}`, char n-gram có đệm khoảng trắng (`char_wb`), thứ tự/độ dài feature URL, parse URL tự viết (không dùng `new URL`). Tin cậy `decision_agreement` thay vì xác suất tuyệt đối: ngưỡng đã được `robust_threshold` đẩy vào giữa hai điểm số liền kề để tránh lật quyết định do float32/float64.
+- Tin nhắn: precision không thấp hơn 0.90 tại recall không thấp hơn 0.80 trên tập test gán tay.
+- URL: recall không thấp hơn 0.90 tại FPR không quá 1% trên `test_cross` (PhishVN tầng gold và silver). Báo cáo kèm khoảng tin cậy 95% theo bootstrap, ma trận nhầm lẫn và PR-AUC. Nếu không đạt, kết quả vẫn được báo cáo đúng như đo được và trường `meets_bar...` nhận giá trị `false`.
+- Chọn model URL: chọn model đơn giản nhất (theo thứ tự khai báo trong `models:`) đạt tiêu chí trên validation, tức `val_cross`, hoặc `val_in` nếu `val_cross` chỉ có một lớp. Tập `test_cross` không tham gia việc chọn mà chỉ dùng để xác nhận. Nếu model do validation chọn không đạt trên test thì `selected_model` nhận giá trị `null` (frontend dùng LR và đặt `meetsBar=false`), còn `validation_selected_model` vẫn ghi model đã chọn trên validation.
+- Với PhishVN v3.1.0, tập `val_cross` theo tầng gold và silver chỉ có khoảng 24 mẫu phishing. Trong trường hợp này có thể nới riêng validation bằng `phishvn.val_tiers` (ví dụ thêm `bronze`). Tùy chọn này chỉ dùng cho việc chọn ngưỡng và chọn model; `test_cross` luôn chỉ gồm gold và silver. Lựa chọn này cần được nêu rõ trong báo cáo.
 
-Runtime: timeout/lỗi → trạng thái `unavailable`, **không bao giờ** trả "safe". Kết quả AI chỉ ở client, không gửi lên server.
+## 6. Đối chiếu Python và TypeScript (AI16)
 
-## Cấu trúc
+Client không chạy Python, vì vậy các lệnh `export-*` tạo ra các tệp sau trong `models/artifacts/`:
+
+| Tệp | Mục đích |
+|---|---|
+| `message/message_model.json` | Từ vựng, idf, hệ số, hệ số chặn, ngưỡng và tham số featurizer để TypeScript tự tính TF-IDF và LR |
+| `message/message_rules.json` | Luật regex (mức 0) |
+| `message/message_parity_fixtures.json` | Ca kiểm tra: `normalize` (chuỗi khớp tuyệt đối), `analyze` (danh sách feature khớp tuyệt đối), `predict` (sai số không quá 1e-5) |
+| `url/url_spec.json` | Hằng số và danh sách feature URL |
+| `url/url_lr.json` | Mô hình LR dạng JSON |
+| `url/url_gbdt.onnx`, `url/url_rf.onnx` | Mô hình cây, chạy bằng onnxruntime-web (WASM) khi được chọn |
+| `url/url_parity_fixtures.json` | `allFeatures` (sai số không quá 1e-9), `probabilities` (LR không quá 1e-6, ONNX không quá 1e-4) |
+
+Phía TypeScript (`frontend/src/ai/features`) cài đặt lại `normalizeText`, `analyze` và `extractUrlFeatures` giống hệt `src/securechat_ml/features/{text,url}.py`, và được kiểm tra bằng các fixtures ở bảng trên. Các điểm dễ gây sai lệch gồm: `String.prototype.normalize('NFD')`, phép đổi `đ` thành `d`, regex `[0-9]{6,}`, char n-gram có đệm khoảng trắng (`char_wb`), thứ tự và độ dài vector feature URL, và việc tự phân tích URL thay cho `new URL`.
+
+Mức khớp của xác suất được đánh giá cùng với mức trùng quyết định (`decision_agreement`). Hàm `robust_threshold` đặt ngưỡng vào giữa hai điểm số liền kề để quyết định không bị đổi do khác biệt giữa float32 và float64.
+
+Khi mô hình quá hạn hoặc lỗi, runtime trả trạng thái `unavailable` và không bao giờ trả kết quả "an toàn". Kết quả phân tích chỉ nằm ở client, không gửi lên máy chủ.
+
+## 7. Cấu trúc thư mục
 
 ```
-configs/   labels.yaml, message.yaml, url.yaml, rules.yaml
-data/      raw/ (bạn thả dữ liệu) · splits/ · demo/ · SOURCES.md · SYNTHETIC_SPEC.md
-src/securechat_ml/  config · features/{text,url} · data/{splits,messages,urls,demo}
-                    models/{message,url} · evaluation/metrics · export/{message_json,url_export,parity} · cli
-tests/     features · leakage · metrics + pipeline
+configs/            labels.yaml, message.yaml, url.yaml, rules.yaml
+data/               raw/ (dữ liệu đầu vào), splits/, demo/, SOURCES.md, SYNTHETIC_SPEC.md
+scripts/            merge_phishvn_splits.py, url_char_ngram_experiment.py
+src/securechat_ml/  config, features/{text,url}, data/{splits,messages,urls,demo},
+                    models/{message,url}, evaluation/metrics, export/{message_json,url_export,parity}, cli
+tests/              features, leakage, metrics và pipeline, group split, quy tắc chọn model URL
+reports/            kết quả đo
 ```
 
-## Giới hạn đã biết
+## 8. Giới hạn đã biết
 
-- `HistGradientBoosting` **không** xuất ONNX được với skl2onnx 1.20 + numpy 2.5 → dùng `GradientBoostingClassifier` (`gbdt`).
-- PhishVN schema chưa kiểm chứng; PhiUSIIL dùng riêng chuỗi URL (không dùng các cột đặc trưng sẵn có của bộ này).
-- Chưa có bản TS của featurizer; chưa có benchmark trên trình duyệt (độ trễ, bộ nhớ) – cần đo trên thiết bị thật.
-- Nấc 2–3 (e5, PhoBERT, distillation) chưa làm; chỉ cân nhắc khi baseline TF-IDF+LR không đạt ngưỡng và còn ≥ 3 ngày.
+- `HistGradientBoostingClassifier` không xuất được sang ONNX với skl2onnx 1.20 và numpy 2.x, nên model GBDT dùng `GradientBoostingClassifier`.
+- PhiUSIIL chỉ được dùng ở mức chuỗi URL; các cột đặc trưng tính sẵn của bộ này không được sử dụng.
+- Tên miền đăng ký (`registered_domain`) được xác định theo cách đơn giản, nên các nền tảng cho thuê tên miền con (ví dụ vercel.app, weebly.com) bị tính chung thành một tên miền.
+- Phần URL hợp lệ của PhishVN chủ yếu là tên miền `.gov.vn`. Tỷ lệ báo nhầm trên các liên kết thực tế trong tin nhắn có thể cao hơn số đo trên `test_cross`.
+- Trên dữ liệu hiện có, cả ba model URL (LR, GBDT, RF) đều không đạt tiêu chí recall 0.90 tại FPR 1% trên `test_cross` (xem `reports/url_metrics.json`). Thí nghiệm bổ sung với char n-gram không đạt điều kiện đã đặt trước để chuyển sang frontend (xem `reports/url_char_ngram_experiment.txt`).
+- Chưa có số đo độ trễ và bộ nhớ trên trình duyệt ở thiết bị thật. Trang `/bench` của frontend dùng cho việc này.
+- Các phương án nâng cấp mô hình tin nhắn (e5, PhoBERT, chưng cất tri thức) chưa được thực hiện. Chỉ cân nhắc khi baseline TF-IDF kết hợp LR không đạt tiêu chí và còn ít nhất ba ngày.
 
-## Checklist bàn giao
+## 9. Danh mục đầu ra theo yêu cầu
 
-| ID              | Việc                                                      | Vị trí dự kiến                           |
-| --------------- | --------------------------------------------------------- | ---------------------------------------- |
-| AI1–AI3         | Dataset, nguồn, license, label definition                 | `data/SOURCES.md`, `configs/labels.yaml` |
-| AI4–AI6         | 2 model + baseline                                        | `src/securechat_ml/models/*`             |
-| AI7–AI10        | Split độc lập, metrics, FP/FN analysis                    | `evaluation/`, `reports/`                |
-| AI11            | Ít nhất 1 tối ưu có số đo (quantize/prune/distill)        | `export/`, `reports/optimization.md`     |
-| AI12            | Giới hạn model, ngôn ngữ hỗ trợ                           | `models/artifacts/model_card.md`         |
-| AI14, AI16      | ONNX export + parity                                      | `export/`                                |
-| AI18–AI21, AI26 | Cold/warm latency, CPU/RAM, size, AI ON/OFF, browser test | `reports/performance.md`                 |
+| Mã | Nội dung | Vị trí |
+|---|---|---|
+| AI1 đến AI3 | Dữ liệu, nguồn, giấy phép, định nghĩa nhãn | `data/SOURCES.md`, `configs/labels.yaml` |
+| AI4 đến AI6 | Hai model và baseline | `src/securechat_ml/models/` |
+| AI7 đến AI10 | Chia tập độc lập, độ đo, phân tích FP/FN | `src/securechat_ml/evaluation/`, `reports/` |
+| AI11 | Tối ưu có số đo (quantize, prune hoặc distill), tối thiểu một phương án | `src/securechat_ml/export/`, `reports/optimization_message.json` |
+| AI12 | Giới hạn mô hình, ngôn ngữ hỗ trợ | `models/artifacts/model_card.md` (dự kiến) |
+| AI14, AI16 | Xuất ONNX và đối chiếu | `src/securechat_ml/export/` |
+| AI18 đến AI21, AI26 | Độ trễ cold/warm, CPU/RAM, kích thước, bật/tắt AI, kiểm tra trên trình duyệt | `reports/performance.md` (dự kiến) |
