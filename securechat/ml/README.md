@@ -15,7 +15,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # nếu bị chặn: Set-ExecutionPolicy -Scope Process Bypass
 pip install -r requirements.txt
 pip install -e .                       # cho phép gọi python -m securechat_ml.cli mà không đặt PYTHONPATH
-python -m pytest -q                    # kết quả mong đợi: 67 passed
+python -m pytest -q                    # kết quả mong đợi: 93 passed
 python -m securechat_ml.cli demo-all   # chạy toàn bộ đường ống trên dữ liệu demo
 python -m securechat_ml.cli demo-clean # xóa đầu ra demo
 ```
@@ -40,7 +40,28 @@ Tệp `data/raw/messages_train_pool.csv` dùng cho huấn luyện và validation
 | `group` | Không | Mã kịch bản hoặc mẫu tin; các tin cùng `group` luôn nằm trong cùng một tập |
 | `lang` | Không | Mặc định `vi` |
 
-Tệp `data/raw/messages_handlabeled.csv` là tập test, do người thực hiện tự gán nhãn, không sinh bằng AI. Các cột gồm `text`, `label` và tùy chọn `hard`, `note`. Giá trị `hard=1` đánh dấu các ca khó (không dấu, teencode, tin hợp lệ có hình thức giống lừa đảo); các ca này được báo cáo riêng ở tập `test_hard`.
+Nguồn tin nhắn thật hiện dùng là bộ SMS tiếng Việt ghi tại `data/SOURCES.md`. Bộ này chỉ có hai nhãn (0 và 1) và toàn tin SMS, nên được chuyển sang định dạng trên bằng `scripts/import_vi_sms.py`:
+
+```powershell
+git clone https://github.com/trannguyenthaituan251209/vietnamese_sms_dataset data/raw/vietnamese_sms_dataset
+python scripts/import_vi_sms.py --src data/raw/vietnamese_sms_dataset/full_dataset.csv --out data/raw/messages_vi_sms.csv
+python scripts/build_message_pool.py messages_vi_sms.csv    # thêm các tệp khác (tin chat tổng hợp) vào cuối danh sách
+```
+
+Script loại tin trùng, gộp khoảng trắng, gán nhãn theo luật rồi thay các token ẩn danh bằng giá trị giả theo ngữ cảnh (số điện thoại sau "thuê bao", đầu số sau "gửi", số tài khoản sau "STK", năm trong số hiệu văn bản...). Giá trị sinh cố định theo `message_id` nên chạy lại cho cùng kết quả. Luật gán nhãn, theo thứ tự ưu tiên:
+
+| Luật | Điều kiện | Nhãn |
+|---|---|---|
+| `label1` | Nhãn gốc 1 | `scam` |
+| `tag_qc` | Nhãn gốc 0 và có tag `[QC]` hoặc `(QC)` | `spam` |
+| `giao_dich_otp` | Có OTP, mã xác thực, số dư, biến động, mã vận đơn | `benign` |
+| `thong_bao` | Thông báo dịch vụ hoặc quy định (cập nhật thông tin thuê bao, định danh, lịch khám, giao hàng) | `benign` |
+| `tu_khoa_qc` | Từ khóa khuyến mại (ưu đãi, giảm, miễn phí, tặng, đăng ký, soạn ... gửi, data, mua) | `spam` |
+| `mac_dinh` | Các tin còn lại | `benign` |
+
+Ranh giới giữa quảng cáo và thông báo dịch vụ không rõ ràng nên nhãn `spam` và `benign` của bộ này có nhiễu. Script ghi mẫu phân tầng theo luật vào `data/interim/vi_sms_review.csv` (cột `check` để điền) và thống kê vào `reports/vi_sms_import.json`. Nhãn nào sai thì ghi vào tệp `overrides.csv` (cột `message_id,label`) rồi chạy lại với `--overrides overrides.csv`.
+
+Tệp `data/raw/messages_handlabeled.csv` là tập test, do người thực hiện tự gán nhãn, không sinh bằng AI. Các cột gồm `text`, `label` và tùy chọn `hard`, `note`. Giá trị `hard=1` đánh dấu các ca khó (không dấu, teencode, tin hợp lệ có hình thức giống lừa đảo); các ca này được báo cáo riêng ở tập `test_hard`. Quy cách viết và gán nhãn nằm trong `data/LABELING_GUIDE.md`.
 
 ### 2.2. URL
 
@@ -107,11 +128,11 @@ Khi mô hình quá hạn hoặc lỗi, runtime trả trạng thái `unavailable`
 
 ```
 configs/            labels.yaml, message.yaml, url.yaml, rules.yaml
-data/               raw/ (dữ liệu đầu vào), splits/, demo/, SOURCES.md, SYNTHETIC_SPEC.md
-scripts/            merge_phishvn_splits.py, url_char_ngram_experiment.py
-src/securechat_ml/  config, features/{text,url}, data/{splits,messages,urls,demo},
+data/               raw/ (dữ liệu đầu vào), splits/, demo/, SOURCES.md, SYNTHETIC_SPEC.md, LABELING_GUIDE.md
+scripts/            merge_phishvn_splits.py, url_char_ngram_experiment.py, import_vi_sms.py, build_message_pool.py
+src/securechat_ml/  config, features/{text,url}, data/{splits,messages,urls,vi_sms,demo},
                     models/{message,url}, evaluation/metrics, export/{message_json,url_export,parity}, cli
-tests/              features, leakage, metrics và pipeline, group split, quy tắc chọn model URL
+tests/              features, leakage, metrics và pipeline, group split, quy tắc chọn model URL, chuyển bộ SMS
 reports/            kết quả đo
 ```
 
@@ -122,6 +143,8 @@ reports/            kết quả đo
 - Tên miền đăng ký (`registered_domain`) được xác định theo cách đơn giản, nên các nền tảng cho thuê tên miền con (ví dụ vercel.app, weebly.com) bị tính chung thành một tên miền.
 - Phần URL hợp lệ của PhishVN chủ yếu là tên miền `.gov.vn`. Tỷ lệ báo nhầm trên các liên kết thực tế trong tin nhắn có thể cao hơn số đo trên `test_cross`.
 - Trên dữ liệu hiện có, cả ba model URL (LR, GBDT, RF) đều không đạt tiêu chí recall 0.90 tại FPR 1% trên `test_cross` (xem `reports/url_metrics.json`). Thí nghiệm bổ sung với char n-gram không đạt điều kiện đã đặt trước để chuyển sang frontend (xem `reports/url_char_ngram_experiment.txt`).
+- Tin nhắn thật hiện chỉ gồm SMS (nhà mạng, ngân hàng, đầu số quảng cáo, tin lừa đảo), không có tin trò chuyện thường ngày. Model huấn luyện chỉ trên bộ này có nguy cơ gắn nhãn rủi ro cho tin chat; cần bổ sung tin `benign` kiểu chat (tổng hợp theo `SYNTHETIC_SPEC.md`, `source=synthetic`) và đánh giá trên tập test gán tay kiểu chat.
+- Nhãn `spam` và `benign` của bộ SMS được gán bằng luật nên có nhiễu; chưa đo tỷ lệ sai. Validation lấy từ tin `real` nên cũng chỉ gồm SMS, do đó số đo trên validation không đại diện cho tin chat.
 - Chưa có số đo độ trễ và bộ nhớ trên trình duyệt ở thiết bị thật. Trang `/bench` của frontend dùng cho việc này.
 - Các phương án nâng cấp mô hình tin nhắn (e5, PhoBERT, chưng cất tri thức) chưa được thực hiện. Chỉ cân nhắc khi baseline TF-IDF kết hợp LR không đạt tiêu chí và còn ít nhất ba ngày.
 
