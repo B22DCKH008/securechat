@@ -53,7 +53,7 @@ src/
     runtime/             messageModel, urlModel, modelLoader, engine, worker (và Engine), analyzer, manifest
     rules/sensitive.ts   Luật regex: thẻ (Luhn), CCCD, OTP, mật khẩu, số tài khoản, khóa riêng
     risk.ts              Gộp luật, model tin nhắn và model URL thành kết quả cho một tin
-    bench/               runBench (p50, p95, p99, cold-load) và mẫu đo
+    bench/               runBench, runOnOff (p50, p95, p99, nạp lần đầu, bật/tắt AI) và mẫu đo
   lib/                   emitter, serialQueue, base64, uuid
 public/models/           Model và manifest (được commit)
 tests/fixtures/ai-demo/  Fixtures từ model demo, để test chạy được khi chưa huấn luyện
@@ -109,7 +109,15 @@ Khi sửa featurizer ở một phía thì phải sửa phía còn lại và sinh
 
 ### 5.2. Đo hiệu năng
 
-Mở trang `/bench` (không cần đăng nhập) trên thiết bị cấu hình yếu hoặc điện thoại thật, chọn "Chạy đo" và tải về tệp JSON. Giá trị p95 kém nhất được dùng để chốt thời gian chờ tối đa. Giá trị hiện tại `DEFAULT_AI_TIMEOUT_MS = 1500` chỉ là điểm xuất phát; giá trị cuối cùng được ghi vào `labels.yaml` ở mục `runtime.timeout_ms`.
+Mở trang `/bench` (không cần đăng nhập) trên thiết bị cấu hình yếu hoặc điện thoại thật, chọn "Chạy đo" và tải về tệp JSON. Trang đo ba nhóm:
+
+- **Tin nhắn và URL:** độ trễ p50, p95, p99 của từng loại mẫu, thời gian nạp model lần đầu, kích thước model, phiên bản model, bộ nhớ heap trước và sau khi đo, số lần treo luồng chính (long task).
+- **Gửi tin:** thời gian một lần `assessRisk` cho tin không có URL, có 1 URL và có 5 URL (tối đa mỗi tin), tức là chạy model tin nhắn và các model URL cùng lúc.
+- **Bật và tắt AI:** cùng các mẫu gửi tin, đo lần lượt khi AI bật và tắt rồi lấy chênh lệch p50 và p95. Dòng nào có lần phân tích không ở trạng thái `ok` được đánh dấu riêng và không tính vào kết quả.
+
+Chrome không cho trang web tự đọc CPU và RAM của Worker, nên phần này xem bằng Task Manager của trình duyệt (Shift+Esc) trong lúc đo. Khi manifest chưa có model tin nhắn thì các dòng tin nhắn và gửi tin luôn không ở trạng thái `ok`; lúc đó chỉ các dòng URL là số đo có giá trị.
+
+Giá trị p95 kém nhất trên thiết bị yếu được dùng để chốt thời gian chờ tối đa. Giá trị hiện tại `DEFAULT_AI_TIMEOUT_MS = 1500` chỉ là điểm xuất phát; giá trị cuối cùng được ghi vào `labels.yaml` ở mục `runtime.timeout_ms`.
 
 ## 6. Kiểm thử
 

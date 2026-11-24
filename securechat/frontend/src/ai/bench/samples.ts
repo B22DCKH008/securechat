@@ -28,6 +28,20 @@ export const BENCH_CASES: BenchCase[] = [
         8,
       ),
   },
+  // Đường đi thật khi gửi tin (AI20): model tin nhắn và model URL chạy cùng lúc cho một tin.
+  { name: 'Gửi tin thường (không URL)', kind: 'send', input: 'Chiều nay đi ăn không?' },
+  {
+    name: 'Gửi tin có 1 URL',
+    kind: 'send',
+    input: 'Xem giúp mình bài này nhé https://example.com/bai-viet/so-1',
+  },
+  {
+    name: 'Gửi tin có 5 URL (tối đa mỗi tin)',
+    kind: 'send',
+    input:
+      'So sánh mấy chỗ này giúp mình: https://example.com/a https://example.org/b?x=1 ' +
+      'https://example.net/c/d http://shop.example.vn/e www.example.com/f',
+  },
   { name: 'URL ngắn', kind: 'url', input: 'https://example.com' },
   {
     name: 'URL dài có tham số',
