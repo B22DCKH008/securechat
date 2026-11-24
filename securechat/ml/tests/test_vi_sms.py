@@ -33,10 +33,14 @@ def test_fold_strips_diacritics_and_d():
         ("[QC] Tặng 10GB data khi soạn DK gửi 191", 0, ("spam", "tag_qc")),
         ("(QC) Chuc mung TB duoc MIEN PHI 4G", 0, ("spam", "tag_qc")),
         ("[TB] Dung quen voucher giam 50% khi mua Data", 0, ("spam", "tu_khoa_qc")),
-        ("Soan DK gui 888 de dang ky goi cuoc", 0, ("spam", "tu_khoa_qc")),
+        ("Soan DK gui 888 de dang ky goi cuoc", 0, ("spam", "soan_gui")),
         ("[TB] Thuê bao cần xác thực thông tin theo Thông tư 08", 0, ("benign", "thong_bao")),
         ("Ong/ba co lich kham benh vao ngay mai", 0, ("benign", "thong_bao")),
         ("Tối nay mấy giờ đi ăn", 0, ("benign", "mac_dinh")),
+        ("Goi ST15K da ket thuc. De biet cac uu dai khac, bam goi *098#", 0, ("benign", "trang_thai_dv")),
+        ("Dang ky khong thanh cong do chuong trinh khong ap dung cho thue bao", 0, ("benign", "trang_thai_dv")),
+        ("[TB] MUA DATA - CHAM CAY. Soan VPL30 gui 191: 20.000d/30 ngay. Cap nhat thong tin huong dan", 0, ("spam", "soan_gui")),
+        ("(QC) Goi X da ket thuc, soan DK gui 888", 0, ("spam", "tag_qc")),
     ],
 )
 def test_map_label_rules(msg, label, expected):
@@ -91,6 +95,44 @@ def test_fill_follows_the_script_of_the_message():
         assert "đ" not in plain and "ngày" not in plain and "phút" not in plain
     seen = {_fill("Cước [MONEY] trong [TIME]", str(i)) for i in range(60)}
     assert any("đ" in s for s in seen)
+
+
+def _one(pattern, text, seed):
+    return re.search(pattern, _fill(text, str(seed))).group(1)
+
+
+def test_fill_time_clock_versus_duration():
+    for i in range(40):
+        # hiệu lực của OTP là khoảng thời gian ngắn, không phải giờ trong ngày
+        assert re.fullmatch(r"(?:\d+p|\d+ phut)", _one(r"hieu luc (\S+(?: phut)?)", "Ma OTP 123456 hieu luc [TIME]", i))
+        # "hiệu lực" ngoài OTP là khoảng thời gian
+        assert re.search(r"hieu luc \d+(?:h| phut| ngay| thang| gio)\.", _fill("Uu dai hieu luc [TIME].", str(i)))
+        # giờ trong ngày: sau ngày và sau "lúc"
+        out = _fill("Ngay GD: [DATE] [TIME].", str(i))
+        tok = re.search(r"(\d{1,2})(?::\d{2}|h\d{0,2})\.$", out)
+        assert tok and 6 <= int(tok.group(1)) <= 22
+        out = _fill("Xay ra luc [TIME] hom nay", str(i))
+        tok = re.search(r"luc (\d{1,2})(?::\d{2}|h\d{0,2}) hom", out)
+        assert tok and 6 <= int(tok.group(1)) <= 22
+
+
+def test_fill_more_number_contexts():
+    for i in range(40):
+        assert re.fullmatch(r"\d{3,10}", _one(r"goi ngay (\S+) de", "Neu khong phai ban, goi ngay [NUMBER] de khoa the", i))
+        assert re.fullmatch(r"\d{9,13}", _one(r"Nguoi nhan: (\S+)", "TK Nguoi nhan: [NUMBER] So tien", i))
+        assert re.fullmatch(r"\d{8,12}", _one(r"hop dong (\S+)", "ma hop dong [NUMBER] thang", i))
+        assert re.fullmatch(r"20(?:24|25|26)", _one(r"nam moi (\S+)!", "Chao nam moi [NUMBER]!", i))
+        assert re.fullmatch(r"\d{9,13}", _one(r"- (\d+) tai", "so tai khoan: - [NUMBER] tai Vietinbank.", i))
+        assert re.fullmatch(r"0\d{9}", _one(r"Tien di dong (\S+)", "TK Tien di dong [NUMBER] GD", i))
+        assert re.fullmatch(r"(?:\d{4}|\d{6})", _one(r"Su dung (\S+) de", "Su dung [NUMBER] de xac thuc 2 yeu to tren Facebook", i))
+
+
+def test_fill_fee_in_parentheses_keeps_unit_once():
+    for i in range(40):
+        out = _fill("Chi tiet LH [NUMBER] ([MONEY]/phut). Tran trong", str(i))
+        assert out.count("/phut") == 1 and re.search(r"\((?:200|300|500|1000|2000)d/phut\)", out)
+        out = _fill("soan KM gui [NUMBER] ([MONEY]) de dang ky", str(i))
+        assert re.search(r"\(\d+d/tin\)", out)
 
 
 def test_fill_call_fee_in_parentheses_is_small():
@@ -150,6 +192,40 @@ def test_import_sms_gives_same_result_for_crlf_and_lf():
     a, _ = vi_sms.import_sms(lf)
     b, _ = vi_sms.import_sms(crlf)
     assert a["text"].tolist() == b["text"].tolist() and a["label"].tolist() == b["label"].tolist()
+
+
+def test_is_english_only_flags_english_verification_messages():
+    assert vi_sms.is_english("G-123456 is your Google verification code.")
+    assert vi_sms.is_english("Your Discord verification code is: 123456")
+    assert not vi_sms.is_english("Nhap code 1234 de nhan qua")
+    assert not vi_sms.is_english("Ma OTP la 123456")
+
+
+def test_scrub_pii_masks_names_emails_and_account_ids():
+    t = "Tong cuoc cua Quy khach LO QUANG THANG ma hop dong 1, account t008_ftth_thanglq24, mail drtai678@gmail.com."
+    out = vi_sms.scrub_pii(t, random.Random("x"))
+    assert "LO QUANG THANG" not in out and "thanglq24" not in out and "drtai678" not in out
+    assert "Quy khach " in out and "t008_ftth_" in out and out.endswith("@gmail.com.")
+    assert out == vi_sms.scrub_pii(t, random.Random("x"))
+    assert vi_sms.scrub_pii("Hom nay hop luc 9h", random.Random("x")) == "Hom nay hop luc 9h"
+
+
+def test_import_sms_drops_english_and_scrubs_pii():
+    df = _df(
+        [
+            ("E1", "d", "G-[NUMBER] is your Google verification code.", "0"),
+            ("P1", "d", "Tong cuoc DV cua Quy khach LO QUANG THANG ma hop dong [NUMBER] la [MONEY]. Lien he drtai1@gmail.com", "0"),
+        ]
+    )
+    d, rep = vi_sms.import_sms(df)
+    assert rep["english_dropped"] == 1 and rep["pii_scrubbed"] == 1 and rep["kept"] == 1
+    assert "LO QUANG THANG" not in d["original"].iloc[0] and "drtai1" not in d["text"].iloc[0]
+
+
+def test_overrides_file_is_valid():
+    o = pd.read_csv(ROOT / "data" / "vi_sms_overrides.csv", dtype=str, encoding="utf-8-sig")
+    assert {"message_id", "label"} <= set(o.columns)
+    assert set(o["label"]) <= set(vi_sms.LABELS) and o["message_id"].is_unique
 
 
 def test_import_sms_is_deterministic():

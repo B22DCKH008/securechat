@@ -4,7 +4,9 @@ Nguồn: trannguyenthaituan251209/vietnamese_sms_dataset (cột message_id,date,
 Bộ này chỉ có 2 nhãn (0 = tin hợp lệ, 1 = lừa đảo/spam) nên được ánh xạ sang 3 nhãn của dự án
 (benign/spam/scam) bằng luật. Các bước:
 
-  1. Loại tin trùng sau chuẩn hóa (giữ tin đầu; tin trùng nhưng khác nhãn bị loại hết).
+  1. Loại tin không phải tiếng Việt (mã xác thực bằng tiếng Anh), tin trùng sau chuẩn hóa (giữ tin đầu;
+     tin trùng nhưng khác nhãn bị loại hết), rồi che các thông tin cá nhân còn sót (email, tên viết hoa
+     sau "Quy khach", mã tài khoản dịch vụ có chứa tên).
   2. Gán nhãn: label 1 -> scam; label 0 -> spam nếu là tin quảng cáo của nhà mạng, ngược lại benign.
   3. Thay token ẩn danh ([MONEY], [NUMBER], [TIME]...) bằng giá trị giả, sinh theo ngữ cảnh và
      cố định theo message_id (chạy lại cho cùng kết quả). Nếu để nguyên, model sẽ học "có [NUMBER]"
@@ -56,6 +58,22 @@ _TXN_PATTERNS = [
 ]
 _TXN_RE = re.compile("|".join(_TXN_PATTERNS))
 
+# Phản hồi trạng thái dịch vụ (đăng ký/hủy/gia hạn thành công hay không, cú pháp sai): benign.
+_STATUS_PATTERNS = [
+    r"\bkhong thanh cong\b",
+    r"\bda ket thuc\b",
+    r"\bda huy\b",
+    r"\bhuy gia han\b",
+    r"\bse gia han\b",
+    r"\b(?:dang ky|huy|gia han) thanh cong\b",
+    r"\bkhong hop le\b",
+    r"\bkhong ap dung cho\b",
+]
+_STATUS_RE = re.compile("|".join(_STATUS_PATTERNS))
+
+# Lời mời đăng ký qua cú pháp "soạn ... gửi ...": spam, kể cả khi có đoạn thông báo đi kèm.
+_SOANGUI_RE = re.compile(r"\bsoan\b.{0,60}\bgui\b")
+
 # Thông báo dịch vụ / quy định (cập nhật thuê bao, lịch khám, giao hàng): benign, nhưng đứng sau tag QC.
 _NOTICE_PATTERNS = [
     r"\bthong tu 08\b",
@@ -102,6 +120,10 @@ def map_label(message: str, label: int | str) -> tuple[str, str]:
         return "spam", "tag_qc"
     if _TXN_RE.search(f):
         return "benign", "giao_dich_otp"
+    if _STATUS_RE.search(f):
+        return "benign", "trang_thai_dv"
+    if _SOANGUI_RE.search(f):
+        return "spam", "soan_gui"
     if _NOTICE_RE.search(f):
         return "benign", "thong_bao"
     if _PROMO_RE.search(f):
@@ -128,17 +150,30 @@ _BIG_MONEY = [5_000_000, 8_000_000, 10_000_000, 20_000_000, 30_000_000, 50_000_0
 _BIG_MONEY_KW = re.compile(r"\b(luong|thu nhap|hoa hong|trung thuong|thuong|hoan tien|von|vay|lai suat|dau tu|tien thuong)\b")
 _MID_MONEY_KW = re.compile(r"\b(nap|the|goi|voucher|giam|khuyen mai|so du|giao dich|cuoc|thanh toan|qua)\b")
 
-_PHONE_CTX = re.compile(r"(?:thue bao|\btb|sdt|so dien thoai|sim|mang va|cho tb|tu tb|nhan vien|zalo|telegram|whatsapp|viber)\s*$")
-_HOTLINE_CTX = re.compile(r"(?:\blh|lien he|cskh|tong dai|hotline|ho tro|bam goi|goi|chi tiet)\s*:?\s*$")
+_PHONE_CTX = re.compile(r"(?:thue bao|\btb|sdt|so dien thoai|sim|mang va|cho tb|tu tb|nhan vien|zalo|telegram|whatsapp|viber|tien di dong|so thue bao)\s*$")
+_HOTLINE_CTX = re.compile(
+    r"(?:\blh|lien he|cskh|tong dai|hotline|ho tro|bam goi|goi\s+(?:ngay|gap|dien|toi|den|vao)|chi tiet|dat lich hen)\s*:?\s*$"
+)
 _SHORT_CTX = re.compile(r"(?:gui|soan[^.]{0,40}?)\s*$")
-_ACCOUNT_CTX = re.compile(r"(?:stk|tai khoan|chuyen khoan|so tk|tk)\s*:?\s*$")
+_ACCOUNT_CTX = re.compile(r"(?:stk|tai khoan|chuyen khoan|so tk|\btk|nguoi nhan)\s*:?\s*[-•]?\s*$")
+_BANK_AFTER = re.compile(
+    r"^(?:tai|o)\s+(?:ngan hang|vietinbank|vietcombank|agribank|bidv|mbbank|mb bank|techcombank|vpbank|acb|sacombank|tpbank|kho bac)"
+)
 _OTP_CTX = re.compile(r"(?:otp|ma|code)\s*:?\s*$")
-_ORDER_CTX = re.compile(r"(?:don hang|van don|ma don)\s*:?\s*$")
-_DAY_CTX = re.compile(r"\bngay\s*$")
-_YEAR_CTX = re.compile(r"(?:\bnam|nhiem ky|\bthang \d{1,2}/)\s*$")
+_ORDER_CTX = re.compile(r"(?:don hang|van don|ma don|hop dong|ma ho so)\s*:?\s*$")
+_DAY_CTX = re.compile(r"\b(?:vao|truoc|den|tu|het)\s+ngay\s*$")
+_YEAR_CTX = re.compile(r"(?:\bnam|nam moi|nhiem ky|\bthang \d{1,2}/)\s*$")
 _YEAR_RANGE_CTX = re.compile(r"\b20\d\d\s*-\s*$")
 _LEGAL_AFTER = re.compile(r"^\s*/\s*(?:tt|nd|qd|ubnd|nq)")
 _ZALO_CTX = re.compile(r"(?:zalo\.me|t\.me|wa\.me)/\s*$")
+_OTP_MSG_RE = re.compile(r"\botp\b|ma xac (?:thuc|minh)|xac thuc 2 yeu to|verification|activation")
+
+# Ngữ cảnh của [TIME]: giờ trong ngày (có ngày đi kèm, khoảng giờ, "lúc ...") hay khoảng thời gian.
+_CLOCK_BEFORE = re.compile(r"(?:(?<!hieu )\bluc|\bhen)\s*$")
+_CLOCK_PREV = re.compile(r"\d{1,2}(?::\d{2}|h\d{0,2})\s*(?:-|den)\s*$")
+_AFTER_DATE = re.compile(r"\d{1,2}/\d{1,2}(?:/\d{2,4})?\s*$")
+_CLOCK_AFTER = re.compile(r"^\s*(?:(?:-|den)\s*\[time\]|(?:ngay\s+)?(?:\[date\]|\d{1,2}/\d{1,2}))")
+_SMS_FEE_CTX = re.compile(r"(?:gui|soan)\b[^()]{0,40}\(\s*$")
 
 
 def _digits(rng: random.Random, n: int, first_nonzero: bool = True) -> str:
@@ -178,16 +213,27 @@ def _money(rng: random.Random, folded_text: str, scam: bool, accented: bool) -> 
     return rng.choice(forms)
 
 
-def _call_fee(rng: random.Random, accented: bool) -> str:
-    v = rng.choice([200, 300, 500, 1000, 2000])
-    return f"{v}{'đ/phút' if accented else 'd/phut'}"
+def _fee(rng: random.Random, accented: bool, values: list[int], suffix: str = "") -> str:
+    """Cước gọi hoặc cước tin nhắn trong ngoặc, ví dụ (500đ/phút), (1000đ/tin)."""
+    v = rng.choice(values)
+    return f"{v}{'đ' if accented else 'd'}{suffix}"
 
 
-def _time(rng: random.Random, before: str, accented: bool) -> str:
-    clock_ctx = re.search(r"(?:\bluc|\bvao luc|\btu|\bden|\bden het|\blich)\s*$", before) is not None
-    if clock_ctx and rng.random() < 0.8:
-        h, m = rng.randint(0, 23), rng.choice([0, 15, 30, 45])
-        return rng.choice([f"{h:02d}:{m:02d}", f"{h}h{m:02d}" if m else f"{h}h"])
+def _time(rng: random.Random, before: str, after: str, accented: bool, otp_msg: bool) -> str:
+    clock = bool(
+        _CLOCK_BEFORE.search(before)
+        or _CLOCK_PREV.search(before)
+        or _AFTER_DATE.search(before)
+        or _CLOCK_AFTER.search(after)
+    )
+    if clock:
+        h, m = rng.randint(6, 22), rng.choice([0, 15, 30, 45])
+        return rng.choice([f"{h:02d}:{m:02d}", f"{h}h{m:02d}" if m else f"{h}h", f"{h}:{m:02d}"])
+    if otp_msg:
+        n = rng.choice([1, 2, 3, 5, 5, 10])
+        return f"{n}p" if rng.random() < 0.2 else f"{n} {'phút' if accented else 'phut'}"
+    if after.lstrip().startswith("ngay"):
+        return str(rng.choice([1, 2, 3, 7, 15, 30]))
     n, unit = rng.choice([(24, "h"), (1, "h"), (30, " phút"), (3, " ngày"), (7, " ngày"), (15, " ngày"), (30, " ngày"), (1, " tháng"), (2, " giờ")])
     if not accented:
         unit = {" phút": " phut", " ngày": " ngay", " tháng": " thang", " giờ": " gio"}.get(unit, unit)
@@ -206,13 +252,18 @@ def _point(rng: random.Random) -> str:
     return f"{n:,}".replace(",", ".")
 
 
+def _person(rng: random.Random) -> str:
+    return f"{rng.choice(_HO)} {rng.choice(_DEM)} {rng.choice(_TEN)}"
+
+
 def _name(rng: random.Random, accented: bool) -> str:
-    n = f"{rng.choice(_HO)} {rng.choice(_DEM)} {rng.choice(_TEN)}"
+    n = _person(rng)
     return n if accented else fold(n).title()
 
 
-def _number(rng: random.Random, before_folded: str, after_folded: str) -> str:
+def _number(rng: random.Random, before_folded: str, after_folded: str, otp_msg: bool = False) -> str:
     b = before_folded.rstrip()
+    a = after_folded.lstrip()
     if _ZALO_CTX.search(b):
         return _mobile(rng)
     if b.endswith("nhiem ky"):
@@ -221,22 +272,26 @@ def _number(rng: random.Random, before_folded: str, after_folded: str) -> str:
         return str(rng.choice([2024, 2025, 2026]))
     if _YEAR_RANGE_CTX.search(b):
         return str(rng.choice([2027, 2028, 2031]))
-    if _ACCOUNT_CTX.search(b):
+    if _ACCOUNT_CTX.search(b) or _BANK_AFTER.search(a):
         return _digits(rng, rng.choice([9, 10, 12, 13]))
     if _OTP_CTX.search(b):
         return _digits(rng, rng.choice([4, 6, 6]))
     if _ORDER_CTX.search(b):
         return _digits(rng, rng.choice([8, 10, 12]))
-    if _DAY_CTX.search(b):
+    if re.search(r"\bluc\s*$", b) and a.startswith("[time]"):
         return f"{rng.randint(1, 28):02d}/{rng.randint(1, 12):02d}"
-    if _SHORT_CTX.search(b) or (after_folded.lstrip().startswith("(") and re.search(r"(?:gui|soan)\b", b[-60:])):
+    if _SHORT_CTX.search(b) or (a.startswith("(") and re.search(r"(?:gui|soan)\b", b[-60:])):
         return rng.choice(_SHORTCODES)
     if _HOTLINE_CTX.search(b):
         return _hotline(rng)
     if _PHONE_CTX.search(b):
         return _mobile(rng)
-    if after_folded.lstrip().startswith("(") or re.search(r"\b(?:lh|cskh)\b", b[-30:]):
+    if _DAY_CTX.search(b):
+        return f"{rng.randint(1, 28):02d}/{rng.randint(1, 12):02d}"
+    if a.startswith("(") or re.search(r"\b(?:lh|cskh)\b", b[-30:]):
         return _hotline(rng)
+    if otp_msg:
+        return _digits(rng, rng.choice([4, 6, 6]))
     return _digits(rng, rng.choice([3, 4, 5]))
 
 
@@ -246,20 +301,27 @@ def fill_tokens(text: str, rng: random.Random, scam: bool = False) -> str:
     out: list[str] = []
     pos = 0
     folded_all = fold(text)
+    otp_msg = _OTP_MSG_RE.search(folded_all) is not None
     for m in _ANON_RE.finditer(text):
         out.append(text[pos : m.start()])
         before = fold("".join(out))[-60:]
         after = fold(text[m.end() : m.end() + 20])
         kind = m.group(1)
         if kind == "MONEY":
-            if before.rstrip().endswith("(") and after.lstrip().startswith(")") and not scam:
-                out.append(_call_fee(rng, accented))
+            b, a = before.rstrip(), after.lstrip()
+            if b.endswith("(") and a.startswith("/p"):
+                out.append(_fee(rng, accented, [200, 300, 500, 1000, 2000]))
+            elif b.endswith("(") and a.startswith(")"):
+                if _SMS_FEE_CTX.search(b):
+                    out.append(_fee(rng, accented, [500, 1000, 2000, 3000, 5000, 10000, 15000], "/tin"))
+                else:
+                    out.append(_fee(rng, accented, [200, 300, 500, 1000, 2000], "/phút" if accented else "/phut"))
             else:
                 out.append(_money(rng, folded_all, scam, accented))
         elif kind == "NUMBER":
-            out.append(_number(rng, before, after))
+            out.append(_number(rng, before, after, otp_msg))
         elif kind == "TIME":
-            out.append(_time(rng, before, accented))
+            out.append(_time(rng, before, after, accented, otp_msg))
         elif kind == "DATE":
             out.append(_date(rng))
         elif kind == "POINT":
@@ -271,6 +333,33 @@ def fill_tokens(text: str, rng: random.Random, scam: bool = False) -> str:
         pos = m.end()
     out.append(text[pos:])
     return "".join(out)
+
+
+# --------------------------------------------------------------------------- lọc ngôn ngữ và che thông tin cá nhân
+
+_EN_RE = re.compile(r"\b(?:is your|your|verification|code|do not share|don't share|expires|activation|thank you|please|login|password)\b")
+_VI_RE = re.compile(r"\b(?:quy khach|ban|cua|va|de|khong|duoc|la|tai|cho|voi|nhan|goi|tin|thue bao|vui long|xin|cam on|trong|ma|xac|nhap)\b")
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_UPPER_NAME_RE = re.compile(r"(Quy khach\s+)((?:[A-ZĐ]{2,}\s+){1,3}[A-ZĐ]{2,})(?=\s+(?:ma|da|co|dang)\b)")
+_ACCOUNT_ID_RE = re.compile(r"\b([a-z]\d{3}_[a-z]+_)[a-z]+\d*\b")
+
+
+def is_english(message: str) -> bool:
+    """Tin chỉ có tiếng Anh (thường là mã xác thực của dịch vụ nước ngoài): có từ khóa tiếng Anh và không có từ tiếng Việt."""
+    f = fold(message)
+    return _EN_RE.search(f) is not None and _VI_RE.search(f) is None
+
+
+def scrub_pii(text: str, rng: random.Random) -> str:
+    """Che thông tin cá nhân còn sót trong bộ gốc: email, tên viết hoa sau "Quy khach", mã tài khoản dịch vụ có chứa tên."""
+
+    def handle() -> str:
+        return fold(rng.choice(_TEN)).replace(" ", "")
+
+    text = _EMAIL_RE.sub(lambda m: f"{handle()}{rng.randint(10, 99)}@gmail.com", text)
+    text = _UPPER_NAME_RE.sub(lambda m: m.group(1) + fold(_person(rng)).upper(), text)
+    text = _ACCOUNT_ID_RE.sub(lambda m: m.group(1) + handle() + str(rng.randint(10, 99)), text)
+    return text
 
 
 # --------------------------------------------------------------------------- toàn bộ quy trình
@@ -288,7 +377,7 @@ def import_sms(
     label_col: str = "label",
 ) -> tuple[pd.DataFrame, dict]:
     """Trả về (bảng chi tiết, báo cáo). Bảng chi tiết có đủ cột để ghi file train và file review:
-    ref, rule, label, text (đã thay token), original (bản gốc đã gộp khoảng trắng)."""
+    ref, rule, label, text (đã thay token), original (bản gốc đã gộp khoảng trắng và che thông tin cá nhân)."""
     overrides = overrides or {}
     bad = sorted({v for v in overrides.values() if v not in LABELS})
     if bad:
@@ -305,6 +394,10 @@ def import_sms(
     d = d[d["original"] != ""]
     rep["empty_dropped"] = rep["input"] - int(len(d))
 
+    en = d["original"].map(is_english)
+    rep["english_dropped"] = int(en.sum())
+    d = d[~en]
+
     d["key"] = d["original"].map(fold)
     nl = d.groupby("key")["orig_label"].nunique()
     in_conflict = d["key"].isin(set(nl[nl > 1].index))
@@ -313,6 +406,10 @@ def import_sms(
     n1 = len(d)
     d = d.drop_duplicates(subset="key", keep="first").reset_index(drop=True)
     rep["duplicates_dropped"] = n1 - len(d)
+
+    scrubbed = [scrub_pii(t, random.Random(f"{seed}:{ref}:pii")) for t, ref in zip(d["original"], d["ref"])]
+    rep["pii_scrubbed"] = int(sum(a != b for a, b in zip(scrubbed, d["original"])))
+    d["original"] = scrubbed
 
     labs, rules = [], []
     for msg, lb in zip(d["original"], d["orig_label"]):

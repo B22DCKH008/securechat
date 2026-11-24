@@ -29,7 +29,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--src", required=True, help="full_dataset.csv của bộ SMS")
     ap.add_argument("--out", default=str(ROOT / "data/raw/messages_vi_sms.csv"))
-    ap.add_argument("--overrides", default=None, help="CSV message_id,label để sửa nhãn luật gán sai")
+    ap.add_argument(
+        "--overrides",
+        default=str(ROOT / "data/vi_sms_overrides.csv"),
+        help="CSV có cột message_id,label để sửa nhãn luật gán sai (mặc định data/vi_sms_overrides.csv, bỏ qua nếu không có)",
+    )
     ap.add_argument("--report", default=str(ROOT / "reports/vi_sms_import.json"))
     ap.add_argument("--review", default=str(ROOT / "data/interim/vi_sms_review.csv"))
     ap.add_argument("--per-rule", type=int, default=25, help="số tin mỗi (nhãn, luật) trong file review")
@@ -38,7 +42,7 @@ def main() -> None:
 
     df = pd.read_csv(a.src, dtype=str, keep_default_na=False, encoding="utf-8-sig")
     ov = None
-    if a.overrides:
+    if a.overrides and Path(a.overrides).exists():
         o = pd.read_csv(a.overrides, dtype=str, keep_default_na=False, encoding="utf-8-sig")
         ov = dict(zip(o["message_id"].str.strip(), o["label"].str.strip().str.lower()))
     d, rep = vi_sms.import_sms(df, overrides=ov, seed=a.seed)

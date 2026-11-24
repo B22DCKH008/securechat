@@ -48,18 +48,23 @@ python scripts/import_vi_sms.py --src data/raw/vietnamese_sms_dataset/full_datas
 python scripts/build_message_pool.py messages_vi_sms.csv    # thêm các tệp khác (tin chat tổng hợp) vào cuối danh sách
 ```
 
-Script loại tin trùng, gộp khoảng trắng, gán nhãn theo luật rồi thay các token ẩn danh bằng giá trị giả theo ngữ cảnh (số điện thoại sau "thuê bao", đầu số sau "gửi", số tài khoản sau "STK", năm trong số hiệu văn bản...). Giá trị sinh cố định theo `message_id` nên chạy lại cho cùng kết quả. Luật gán nhãn, theo thứ tự ưu tiên:
+Script bỏ các tin không phải tiếng Việt (mã xác thực bằng tiếng Anh), loại tin trùng, gộp khoảng trắng, che các thông tin cá nhân còn sót (email, tên viết hoa sau "Quy khach", mã tài khoản dịch vụ có chứa tên), gán nhãn theo luật rồi thay các token ẩn danh bằng giá trị giả theo ngữ cảnh (số điện thoại sau "thuê bao", đầu số sau "gửi", số tài khoản sau "STK", giờ trong ngày hay khoảng thời gian, cước gọi trong ngoặc, năm trong số hiệu văn bản...). Giá trị sinh cố định theo `message_id` nên chạy lại cho cùng kết quả. Luật gán nhãn, theo thứ tự ưu tiên:
 
 | Luật | Điều kiện | Nhãn |
 |---|---|---|
 | `label1` | Nhãn gốc 1 | `scam` |
 | `tag_qc` | Nhãn gốc 0 và có tag `[QC]` hoặc `(QC)` | `spam` |
 | `giao_dich_otp` | Có OTP, mã xác thực, số dư, biến động, mã vận đơn | `benign` |
+| `trang_thai_dv` | Phản hồi trạng thái dịch vụ (đăng ký, hủy, gia hạn thành công hoặc không, đã kết thúc, cú pháp không hợp lệ) | `benign` |
+| `soan_gui` | Có cú pháp "soạn ... gửi ..." | `spam` |
 | `thong_bao` | Thông báo dịch vụ hoặc quy định (cập nhật thông tin thuê bao, định danh, lịch khám, giao hàng) | `benign` |
-| `tu_khoa_qc` | Từ khóa khuyến mại (ưu đãi, giảm, miễn phí, tặng, đăng ký, soạn ... gửi, data, mua) | `spam` |
+| `tu_khoa_qc` | Từ khóa khuyến mại (ưu đãi, giảm, miễn phí, tặng, đăng ký, data, mua) | `spam` |
 | `mac_dinh` | Các tin còn lại | `benign` |
+| `override` | Nhãn sửa tay trong `data/vi_sms_overrides.csv` (cột `message_id,label`, cột `ghi_chu` tùy chọn) | theo tệp |
 
-Ranh giới giữa quảng cáo và thông báo dịch vụ không rõ ràng nên nhãn `spam` và `benign` của bộ này có nhiễu. Script ghi mẫu phân tầng theo luật vào `data/interim/vi_sms_review.csv` (cột `check` để điền) và thống kê vào `reports/vi_sms_import.json`. Nhãn nào sai thì ghi vào tệp `overrides.csv` (cột `message_id,label`) rồi chạy lại với `--overrides overrides.csv`.
+Ranh giới giữa quảng cáo và thông báo dịch vụ không rõ ràng nên nhãn `spam` và `benign` của bộ này có nhiễu. Để kiểm tra, script ghi mẫu phân tầng theo luật (25 tin mỗi cặp nhãn và luật) vào `data/interim/vi_sms_review.csv` và thống kê vào `reports/vi_sms_import.json`. Lần xem đầu tiên với 150 tin cho thấy luật sai ở 8 tin: 4 trong 25 tin của luật `tu_khoa_qc`, 3 trong 25 tin của `thong_bao`, 1 trong 25 tin của `mac_dinh`, không có sai sót ở bốn luật còn lại. Quy theo kích thước từng luật, tỷ lệ sai ước tính khoảng 6% (mẫu nhỏ nên khoảng tin cậy rộng). Nhóm sai nhiều nhất là tin phản hồi trạng thái dịch vụ bị gán nhầm là `spam` do có chữ "ưu đãi"; luật `trang_thai_dv` được thêm để xử lý nhóm này. Các tin còn lại được sửa tay trong tệp overrides. Kiểm tra lần hai nên chỉ xem lại mẫu của các luật vừa thay đổi.
+
+Khoảng một phần ba tin `scam` trong mẫu là chuỗi ký tự bị xáo trộn để qua mặt bộ lọc (ví dụ "MMờỜờiVààoo..."). Các tin này vẫn được giữ với nhãn `scam` vì đúng là tin lừa đảo, nhưng chúng ít gặp trong trò chuyện thông thường, nên không nên dùng tỷ lệ `scam` của bộ này để suy ra tỷ lệ trong thực tế.
 
 Tệp `data/raw/messages_handlabeled.csv` là tập test, do người thực hiện tự gán nhãn, không sinh bằng AI. Các cột gồm `text`, `label` và tùy chọn `hard`, `note`. Giá trị `hard=1` đánh dấu các ca khó (không dấu, teencode, tin hợp lệ có hình thức giống lừa đảo); các ca này được báo cáo riêng ở tập `test_hard`. Quy cách viết và gán nhãn nằm trong `data/LABELING_GUIDE.md`.
 
