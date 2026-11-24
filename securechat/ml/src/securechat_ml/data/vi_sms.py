@@ -71,8 +71,22 @@ _STATUS_PATTERNS = [
 ]
 _STATUS_RE = re.compile("|".join(_STATUS_PATTERNS))
 
-# Lời mời đăng ký qua cú pháp "soạn ... gửi ...": spam, kể cả khi có đoạn thông báo đi kèm.
-_SOANGUI_RE = re.compile(r"\bsoan\b.{0,60}\bgui\b")
+# Cú pháp "soạn ... gửi ...". Lời mời đăng ký/nhận ưu đãi là spam, kể cả khi mở đầu bằng câu thông báo
+# ("khi đăng ký thành công ..."). Cú pháp tiện ích (hủy, tra cứu, khóa, từ chối quảng cáo) thì không tính.
+_SOANGUI_ITEM = re.compile(r"\bsoan(?:\s+tin(?:\s+nhan)?)?[:\s]+\"?([^.]{0,60}?)\"?\s*,?\s*\bgui\b")
+_SOANGUI_UTIL = re.compile(r"huy\w*|kt\w*|data\w*|khoa|tc(?:qc|\d{0,2})|hd|tracuu")
+
+
+def _has_promo_syntax(f: str) -> bool:
+    for span in _SOANGUI_ITEM.findall(f):
+        words = re.findall(r"[a-z0-9_]+|\[number\]", span)
+        if not words or any(_SOANGUI_UTIL.fullmatch(w) for w in words):
+            continue
+        if words in (["y"], ["n"]) and re.search(r"\bhuy\b", f):  # "soạn Y gửi 191" xác nhận hủy, "soạn N gửi 191" từ chối hủy
+            continue
+        return True
+    return False
+
 
 # Thông báo dịch vụ / quy định (cập nhật thuê bao, lịch khám, giao hàng): benign, nhưng đứng sau tag QC.
 _NOTICE_PATTERNS = [
@@ -83,6 +97,9 @@ _NOTICE_PATTERNS = [
     r"\bdon hang\b",
     r"\bgiao hang\b",
     r"\blich (?:kham|hen)\b",
+    r"\bthoi tiet\b",
+    r"\bdoi thanh cong\b.{0,40}viettel\+\+",  # thông báo đổi/cộng điểm tích lũy (lời nhắc "đừng quên đổi điểm" vẫn là quảng cáo)
+    r"\bduoc cong them\b.{0,30}viettel\+\+",
 ]
 _NOTICE_RE = re.compile("|".join(_NOTICE_PATTERNS))
 
@@ -100,15 +117,16 @@ _PROMO_PATTERNS = [
     r"\bgoi cuoc\b",
     r"\bnap the\b",
     r"\bdang ky\b",
-    r"\bsoan\b.{0,60}\bgui\b",
     r"\bso luong co han\b",
     r"\bnhan ngay\b",
     r"\bdata\b",
     r"\bung (?:tien|data)\b",
-    r"\bmua\b",
 ]
 _PROMO_RE = re.compile("|".join(_PROMO_PATTERNS))
-_QC_RE = re.compile(r"[\[(]qc[\])]")
+# Tag [QC]/(QC), hoặc tin có kèm cách từ chối quảng cáo (tự nó đã là tin quảng cáo).
+_QC_RE = re.compile(r"[\[(]qc[\])]|\btu choi (?:qc|quang cao|nhan)\b|\btcqc\b")
+# "mua" (mua hàng) xét trên chữ gốc: sau khi bỏ dấu, "mưa" và "mùa" cũng thành "mua". "mua bán người" không phải khuyến mại.
+_MUA_RE = re.compile(r"\bmua\b(?!\s+b[aá]n\b)")
 
 
 def map_label(message: str, label: int | str) -> tuple[str, str]:
@@ -120,13 +138,13 @@ def map_label(message: str, label: int | str) -> tuple[str, str]:
         return "spam", "tag_qc"
     if _TXN_RE.search(f):
         return "benign", "giao_dich_otp"
+    if _has_promo_syntax(f):
+        return "spam", "soan_gui"
     if _STATUS_RE.search(f):
         return "benign", "trang_thai_dv"
-    if _SOANGUI_RE.search(f):
-        return "spam", "soan_gui"
     if _NOTICE_RE.search(f):
         return "benign", "thong_bao"
-    if _PROMO_RE.search(f):
+    if _PROMO_RE.search(f) or _MUA_RE.search(unicodedata.normalize("NFC", message).lower()):
         return "spam", "tu_khoa_qc"
     return "benign", "mac_dinh"
 
@@ -150,29 +168,42 @@ _BIG_MONEY = [5_000_000, 8_000_000, 10_000_000, 20_000_000, 30_000_000, 50_000_0
 _BIG_MONEY_KW = re.compile(r"\b(luong|thu nhap|hoa hong|trung thuong|thuong|hoan tien|von|vay|lai suat|dau tu|tien thuong)\b")
 _MID_MONEY_KW = re.compile(r"\b(nap|the|goi|voucher|giam|khuyen mai|so du|giao dich|cuoc|thanh toan|qua)\b")
 
-_PHONE_CTX = re.compile(r"(?:thue bao|\btb|sdt|so dien thoai|sim|mang va|cho tb|tu tb|nhan vien|zalo|telegram|whatsapp|viber|tien di dong|so thue bao)\s*$")
+_PHONE_CTX = re.compile(r"(?:thue bao|\btb|sdt|so dien thoai|sim|mang va|cho tb|tu tb|nhan vien|zalo|telegram|whatsapp|viber|tien di dong|so thue bao|cho ban:)\s*$")
 _HOTLINE_CTX = re.compile(
     r"(?:\blh|lien he|cskh|tong dai|hotline|ho tro|bam goi|goi\s+(?:ngay|gap|dien|toi|den|vao)|chi tiet|dat lich hen)\s*:?\s*$"
 )
 _SHORT_CTX = re.compile(r"(?:gui|soan[^.]{0,40}?)\s*$")
-_ACCOUNT_CTX = re.compile(r"(?:stk|tai khoan|chuyen khoan|so tk|\btk|nguoi nhan)\s*:?\s*[-•]?\s*$")
+_ACCOUNT_CTX = re.compile(r"(?:stk|tai khoan(?: la)?|chuyen khoan|so tk|\btk(?: thanh toan)?|nguoi nhan)\s*:?\s*[-•]?\s*$")
 _BANK_AFTER = re.compile(
     r"^(?:tai|o)\s+(?:ngan hang|vietinbank|vietcombank|agribank|bidv|mbbank|mb bank|techcombank|vpbank|acb|sacombank|tpbank|kho bac)"
 )
 _OTP_CTX = re.compile(r"(?:otp|ma|code)\s*:?\s*$")
-_ORDER_CTX = re.compile(r"(?:don hang|van don|ma don|hop dong|ma ho so)\s*:?\s*$")
+_ORDER_CTX = re.compile(r"(?:don hang|van don|ma don|hop dong|ma ho so|ten dang nhap)\s*:?\s*$")
 _DAY_CTX = re.compile(r"\b(?:vao|truoc|den|tu|het)\s+ngay\s*$")
-_YEAR_CTX = re.compile(r"(?:\bnam|nam moi|nhiem ky|\bthang \d{1,2}/)\s*$")
+_YEAR_CTX = re.compile(r"(?:\bnam|nam moi|nhiem ky|\bthang \d{1,2}/|\bcup)\s*$")
 _YEAR_RANGE_CTX = re.compile(r"\b20\d\d\s*-\s*$")
 _LEGAL_AFTER = re.compile(r"^\s*/\s*(?:tt|nd|qd|ubnd|nq)")
 _ZALO_CTX = re.compile(r"(?:zalo\.me|t\.me|wa\.me)/\s*$")
+_KM_AFTER = re.compile(r"^(?:km|kilomet)\b")
+_SYNTAX_BEFORE = re.compile(r"\bsoan(?:\s+tin)?\s*:?\s*$")
+# "TV360" bị ẩn danh nguyên cả cụm thành [NUMBER]: "xem phim trên [NUMBER]", "gói cước [NUMBER] Standard".
+_TV_BEFORE = re.compile(r"(?:\bxem|\btren|goi cuoc|mien phi)\s*$")
+_TV_AFTER = re.compile(r"^(?:[.,;!:)]|$|standard\b|theo\b|khong\b|tai\b|de\b|voi\b|va\b)")
+_SYNTAX_CODES = ["SD70", "ST30K", "SD90", "V120B", "MXH100", "ST15K", "DK1", "D60", "TV95K"]
 _OTP_MSG_RE = re.compile(r"\botp\b|ma xac (?:thuc|minh)|xac thuc 2 yeu to|verification|activation")
 
 # Ngữ cảnh của [TIME]: giờ trong ngày (có ngày đi kèm, khoảng giờ, "lúc ...") hay khoảng thời gian.
 _CLOCK_BEFORE = re.compile(r"(?:(?<!hieu )\bluc|\bhen)\s*$")
 _CLOCK_PREV = re.compile(r"\d{1,2}(?::\d{2}|h\d{0,2})\s*(?:-|den)\s*$")
 _AFTER_DATE = re.compile(r"\d{1,2}/\d{1,2}(?:/\d{2,4})?\s*$")
-_CLOCK_AFTER = re.compile(r"^\s*(?:(?:-|den)\s*\[time\]|(?:ngay\s+)?(?:\[date\]|\d{1,2}/\d{1,2}))")
+_CLOCK_AFTER = re.compile(
+    r"^\s*(?:(?:-|den)\s*(?:\[time\]|\d{1,2}(?::\d{2}|h\d{0,2}))|(?:ngay\s+)?(?:\[date\]|\d{1,2}/\d{1,2})|hom nay)"
+)
+_CLOCK_UNTIL = re.compile(r"\bden\s*$")
+_REG_DAY_AFTER = re.compile(r"^\s*ngay\s+(?:dang ky|kich hoat)")
+_AROUND_BEFORE = re.compile(r"\b(?:chieu|sang|toi|trua)\b.{0,15}\btam\s*$")
+_MINUTES_AFTER = re.compile(r"^\s*(?:(?:noi|ngoai|lien) mang)")
+_MINUTES_BEFORE = re.compile(r"\bcuoc goi duoi\s*$")
 _SMS_FEE_CTX = re.compile(r"(?:gui|soan)\b[^()]{0,40}\(\s*$")
 
 
@@ -220,15 +251,24 @@ def _fee(rng: random.Random, accented: bool, values: list[int], suffix: str = ""
 
 
 def _time(rng: random.Random, before: str, after: str, accented: bool, otp_msg: bool) -> str:
+    b = before.rstrip()
     clock = bool(
         _CLOCK_BEFORE.search(before)
         or _CLOCK_PREV.search(before)
         or _AFTER_DATE.search(before)
         or _CLOCK_AFTER.search(after)
+        or _AROUND_BEFORE.search(b) and after.lstrip().startswith("tro")
+        or _CLOCK_UNTIL.search(b) and _REG_DAY_AFTER.search(after)
     )
     if clock:
-        h, m = rng.randint(6, 22), rng.choice([0, 15, 30, 45])
+        if _CLOCK_UNTIL.search(b) and _REG_DAY_AFTER.search(after):
+            return rng.choice(["23h59", "23:59", "24h"])
+        # đầu khoảng giờ ("từ [TIME] - 17h30") phải sớm hơn cuối khoảng
+        h, m = rng.randint(6, 10) if re.match(r"^\s*-\s*\d", after) else rng.randint(6, 22), rng.choice([0, 15, 30, 45])
         return rng.choice([f"{h:02d}:{m:02d}", f"{h}h{m:02d}" if m else f"{h}h", f"{h}:{m:02d}"])
+    if _MINUTES_AFTER.search(after) or _MINUTES_BEFORE.search(b):
+        n = rng.choice([10, 15, 20, 30, 50, 100, 200])
+        return f"{n}p" if rng.random() < 0.25 else f"{n} {'phút' if accented else 'phut'}"
     if otp_msg:
         n = rng.choice([1, 2, 3, 5, 5, 10])
         return f"{n}p" if rng.random() < 0.2 else f"{n} {'phút' if accented else 'phut'}"
@@ -280,6 +320,12 @@ def _number(rng: random.Random, before_folded: str, after_folded: str, otp_msg: 
         return _digits(rng, rng.choice([8, 10, 12]))
     if re.search(r"\bluc\s*$", b) and a.startswith("[time]"):
         return f"{rng.randint(1, 28):02d}/{rng.randint(1, 12):02d}"
+    if _SYNTAX_BEFORE.search(b) and a.startswith("gui"):
+        return rng.choice(_SYNTAX_CODES)
+    if _TV_BEFORE.search(b) and _TV_AFTER.search(a):
+        return "TV360"
+    if _KM_AFTER.search(a):
+        return str(rng.randint(2, 50))
     if _SHORT_CTX.search(b) or (a.startswith("(") and re.search(r"(?:gui|soan)\b", b[-60:])):
         return rng.choice(_SHORTCODES)
     if _HOTLINE_CTX.search(b):
@@ -309,7 +355,9 @@ def fill_tokens(text: str, rng: random.Random, scam: bool = False) -> str:
         kind = m.group(1)
         if kind == "MONEY":
             b, a = before.rstrip(), after.lstrip()
-            if b.endswith("(") and a.startswith("/p"):
+            if b.endswith("(") and re.match(r"/(?:tin|sms)\b", a):
+                out.append(_fee(rng, accented, [500, 1000, 2000, 3000, 5000, 10000, 15000]))
+            elif b.endswith("(") and a.startswith("/p"):
                 out.append(_fee(rng, accented, [200, 300, 500, 1000, 2000]))
             elif b.endswith("(") and a.startswith(")"):
                 if _SMS_FEE_CTX.search(b):

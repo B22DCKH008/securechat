@@ -25,6 +25,17 @@ sys.path.insert(0, str(ROOT / "src"))
 from securechat_ml.data import vi_sms  # noqa: E402
 
 
+def _save(path: Path, write) -> None:
+    """Ghi file; nếu file đang bị mở ở chương trình khác (thường là Excel) thì báo rõ rồi dừng."""
+    try:
+        write(path)
+    except PermissionError:
+        sys.exit(
+            f"Không ghi được {path}: file đang được mở ở chương trình khác (thường là Excel).\n"
+            "Đóng file đó rồi chạy lại lệnh này. Các file đã ghi trước đó vẫn dùng được."
+        )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--src", required=True, help="full_dataset.csv của bộ SMS")
@@ -47,14 +58,17 @@ def main() -> None:
         ov = dict(zip(o["message_id"].str.strip(), o["label"].str.strip().str.lower()))
     d, rep = vi_sms.import_sms(df, overrides=ov, seed=a.seed)
 
-    out = Path(a.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    vi_sms.to_pool(d).to_csv(out, index=False, encoding="utf-8")
-    Path(a.report).parent.mkdir(parents=True, exist_ok=True)
-    Path(a.report).write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
-    vi_sms.review_sample(d, per_rule=a.per_rule, seed=a.seed).to_csv(a.review, index=False, encoding="utf-8-sig")
+    out, report, review = Path(a.out), Path(a.report), Path(a.review)
+    for f in (out, report, review):
+        f.parent.mkdir(parents=True, exist_ok=True)
+    _save(out, lambda f: vi_sms.to_pool(d).to_csv(f, index=False, encoding="utf-8"))
+    _save(report, lambda f: f.write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8"))
+    _save(
+        review,
+        lambda f: vi_sms.review_sample(d, per_rule=a.per_rule, seed=a.seed).to_csv(f, index=False, encoding="utf-8-sig"),
+    )
     print(json.dumps(rep, ensure_ascii=False, indent=2))
-    print(f"-> {out}\n-> {a.report}\n-> {a.review}")
+    print(f"-> {out}\n-> {report}\n-> {review}")
 
 
 if __name__ == "__main__":

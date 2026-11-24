@@ -15,7 +15,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # nếu bị chặn: Set-ExecutionPolicy -Scope Process Bypass
 pip install -r requirements.txt
 pip install -e .                       # cho phép gọi python -m securechat_ml.cli mà không đặt PYTHONPATH
-python -m pytest -q                    # kết quả mong đợi: 93 passed
+python -m pytest -q                    # kết quả mong đợi: 125 passed
 python -m securechat_ml.cli demo-all   # chạy toàn bộ đường ống trên dữ liệu demo
 python -m securechat_ml.cli demo-clean # xóa đầu ra demo
 ```
@@ -53,16 +53,16 @@ Script bỏ các tin không phải tiếng Việt (mã xác thực bằng tiến
 | Luật | Điều kiện | Nhãn |
 |---|---|---|
 | `label1` | Nhãn gốc 1 | `scam` |
-| `tag_qc` | Nhãn gốc 0 và có tag `[QC]` hoặc `(QC)` | `spam` |
+| `tag_qc` | Nhãn gốc 0 và có tag `[QC]` hoặc `(QC)`, hoặc có kèm cách từ chối quảng cáo ("từ chối QC", "TCQC") | `spam` |
 | `giao_dich_otp` | Có OTP, mã xác thực, số dư, biến động, mã vận đơn | `benign` |
 | `trang_thai_dv` | Phản hồi trạng thái dịch vụ (đăng ký, hủy, gia hạn thành công hoặc không, đã kết thúc, cú pháp không hợp lệ) | `benign` |
-| `soan_gui` | Có cú pháp "soạn ... gửi ..." | `spam` |
-| `thong_bao` | Thông báo dịch vụ hoặc quy định (cập nhật thông tin thuê bao, định danh, lịch khám, giao hàng) | `benign` |
-| `tu_khoa_qc` | Từ khóa khuyến mại (ưu đãi, giảm, miễn phí, tặng, đăng ký, data, mua) | `spam` |
+| `soan_gui` | Có lời mời đăng ký hoặc nhận ưu đãi qua cú pháp "soạn ... gửi ...", kể cả khi tin mở đầu bằng câu "đăng ký thành công" hoặc "đã hủy". Cú pháp hủy, xác nhận hủy, tra cứu data, khóa dịch vụ, từ chối quảng cáo không tính | `spam` |
+| `thong_bao` | Thông báo dịch vụ hoặc quy định (cập nhật thông tin thuê bao, định danh, lịch khám, giao hàng, dự báo thời tiết, thông báo đổi hoặc cộng điểm tích lũy Viettel++) | `benign` |
+| `tu_khoa_qc` | Từ khóa khuyến mại (ưu đãi, giảm, miễn phí, tặng, đăng ký, data, mua; không tính "mưa", "mùa", "mua bán") | `spam` |
 | `mac_dinh` | Các tin còn lại | `benign` |
 | `override` | Nhãn sửa tay trong `data/vi_sms_overrides.csv` (cột `message_id,label`, cột `ghi_chu` tùy chọn) | theo tệp |
 
-Ranh giới giữa quảng cáo và thông báo dịch vụ không rõ ràng nên nhãn `spam` và `benign` của bộ này có nhiễu. Để kiểm tra, script ghi mẫu phân tầng theo luật (25 tin mỗi cặp nhãn và luật) vào `data/interim/vi_sms_review.csv` và thống kê vào `reports/vi_sms_import.json`. Lần xem đầu tiên với 150 tin cho thấy luật sai ở 8 tin: 4 trong 25 tin của luật `tu_khoa_qc`, 3 trong 25 tin của `thong_bao`, 1 trong 25 tin của `mac_dinh`, không có sai sót ở bốn luật còn lại. Quy theo kích thước từng luật, tỷ lệ sai ước tính khoảng 6% (mẫu nhỏ nên khoảng tin cậy rộng). Nhóm sai nhiều nhất là tin phản hồi trạng thái dịch vụ bị gán nhầm là `spam` do có chữ "ưu đãi"; luật `trang_thai_dv` được thêm để xử lý nhóm này. Các tin còn lại được sửa tay trong tệp overrides. Kiểm tra lần hai nên chỉ xem lại mẫu của các luật vừa thay đổi.
+Ranh giới giữa quảng cáo và thông báo dịch vụ không rõ ràng nên nhãn `spam` và `benign` của bộ này có nhiễu. Để kiểm tra, script ghi mẫu phân tầng theo luật (25 tin mỗi cặp nhãn và luật) vào `data/interim/vi_sms_review.csv` và thống kê vào `reports/vi_sms_import.json`. Lần xem đầu tiên với 150 tin cho thấy luật sai ở 8 tin: 4 trong 25 tin của luật `tu_khoa_qc`, 3 trong 25 tin của `thong_bao`, 1 trong 25 tin của `mac_dinh`, không có sai sót ở bốn luật còn lại. Quy theo kích thước từng luật, tỷ lệ sai ước tính khoảng 6% (mẫu nhỏ nên khoảng tin cậy rộng). Nhóm sai nhiều nhất là tin phản hồi trạng thái dịch vụ bị gán nhầm là `spam` do có chữ "ưu đãi"; luật `trang_thai_dv` được thêm để xử lý nhóm này. Các tin còn lại được sửa tay trong tệp overrides. Lần xem thứ hai với 50 tin của hai luật vừa thay đổi (`trang_thai_dv` và `soan_gui`, mỗi luật 25 tin) cho thấy 8 tin sai: 7 tin phản hồi trạng thái dịch vụ có kèm lời mời đăng ký bị gán `benign` và 1 tin hướng dẫn khóa dịch vụ thanh toán bị gán `spam`. Luật được sửa để phân biệt cú pháp "soạn" mời đăng ký với cú pháp hủy, tra cứu, khóa; sau khi sửa, cả 50 tin khớp với nhãn đã rà. Khi xem rộng hơn mẫu này còn thấy hai nhóm bị gán sai và được xử lý bằng luật: tin dự báo thời tiết, tin về "mua bán người" và "mùa lễ" (bỏ dấu thì "mưa", "mùa", "mua bán" thành "mua"), và 47 tin thông báo đổi hoặc cộng điểm tích lũy Viettel++ (chuyển từ `spam` sang `benign`; đây là phán đoán của người thực hiện, vì tin có chứa lời mời xem ưu đãi). Tin có kèm cách từ chối quảng cáo được xếp vào `tag_qc` để không mất nhãn `spam` khi cú pháp tiện ích không còn được tính là lời mời. So với lần chạy trước, 74 trong 2.577 tin đổi nhãn: 55 tin từ `spam` sang `benign` và 19 tin từ `benign` sang `spam`. Số tin hiện tại là 1.099 `spam`, 767 `benign`, 711 `scam`.
 
 Khoảng một phần ba tin `scam` trong mẫu là chuỗi ký tự bị xáo trộn để qua mặt bộ lọc (ví dụ "MMờỜờiVààoo..."). Các tin này vẫn được giữ với nhãn `scam` vì đúng là tin lừa đảo, nhưng chúng ít gặp trong trò chuyện thông thường, nên không nên dùng tỷ lệ `scam` của bộ này để suy ra tỷ lệ trong thực tế.
 

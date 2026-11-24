@@ -8,19 +8,19 @@
   "overrides_applied": 4,
   "kept": 2577,
   "label_counts": {
-    "spam": 1135,
-    "benign": 731,
+    "spam": 1099,
+    "benign": 767,
     "scam": 711
   },
   "rule_counts": {
     "label1": 708,
-    "tu_khoa_qc": 419,
-    "soan_gui": 365,
-    "tag_qc": 350,
+    "tag_qc": 395,
+    "tu_khoa_qc": 381,
+    "soan_gui": 322,
     "giao_dich_otp": 305,
-    "mac_dinh": 273,
-    "trang_thai_dv": 96,
-    "thong_bao": 57,
+    "mac_dinh": 281,
+    "thong_bao": 104,
+    "trang_thai_dv": 77,
     "override": 4
   },
   "rows_with_leftover_tokens": 0

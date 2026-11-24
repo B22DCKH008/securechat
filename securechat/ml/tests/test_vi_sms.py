@@ -41,6 +41,26 @@ def test_fold_strips_diacritics_and_d():
         ("Dang ky khong thanh cong do chuong trinh khong ap dung cho thue bao", 0, ("benign", "trang_thai_dv")),
         ("[TB] MUA DATA - CHAM CAY. Soan VPL30 gui 191: 20.000d/30 ngay. Cap nhat thong tin huong dan", 0, ("spam", "soan_gui")),
         ("(QC) Goi X da ket thuc, soan DK gui 888", 0, ("spam", "tag_qc")),
+        # lời mời đăng ký đi sau câu thông báo "đăng ký thành công" / "đã hủy" vẫn là quảng cáo
+        ("(TB) Thue bao 0912345678 duoc +300MB Data khi dang ky thanh cong goi cuoc A. Moi ban soan KUS5 gui 888 dang ky", 0, ("spam", "soan_gui")),
+        ("DV Nhac cho da huy do het CTKM. Moi quy khach soan GC5 gui 888 de dang ky lai DV", 0, ("spam", "soan_gui")),
+        # cú pháp tiện ích (hủy, xác nhận hủy, tra cứu, khóa) không biến tin trạng thái thành quảng cáo
+        ("Quy khach da dang ky thanh cong goi ST30K. Soan HUY ST30K gui 191 de huy gia han", 0, ("benign", "trang_thai_dv")),
+        ("Sau khi huy gia han goi 1N, uu dai con lai dung den het chu ky. Xac nhan: soan Y gui 191. Tu choi: soan N gui 191", 0, ("benign", "trang_thai_dv")),
+        ("Quy Khach da gia han thanh cong goi D2. Kiem tra dung luong, soan DATA gui 888. De huy, soan HUY D2 gui 888", 0, ("benign", "trang_thai_dv")),
+        ("Quy khach da hoan tat xac thuc thanh cong Sacombank Pay. Neu Quy khach KHONG thuc hien, soan STBPAY KHOA gui 8149", 0, ("benign", "mac_dinh")),
+        ("Quy khach vui long soan Y gui 988 de nhan 150000d vao tai khoan KM", 0, ("spam", "soan_gui")),
+        # tin có kèm cách từ chối quảng cáo là quảng cáo
+        ("Sim dang sale upto 65%. Tu choi QC, soan TCQC gui 123", 0, ("spam", "tag_qc")),
+        # "mưa" và "mùa" bỏ dấu thành "mua" nhưng không phải mua hàng; "mua bán người" cũng không phải khuyến mại
+        ("Thoi tiet Tay Ninh 30/06: Co luc co mua, nhiet do 25-30oC", 0, ("benign", "thong_bao")),
+        ("Chúc Quý khách một mùa lễ ấm áp, năm mới thành công", 0, ("benign", "mac_dinh")),
+        ("Toàn dân tích cực phòng chống mua bán người, gọi 111", 0, ("benign", "mac_dinh")),
+        ("Mua 2 tang 1 cho moi don hom nay", 0, ("spam", "tu_khoa_qc")),
+        # thông báo đổi/cộng điểm là tin dịch vụ, còn lời nhắc đổi điểm là quảng cáo
+        ("Doi thanh cong 100 tieu dung Viettel++ thanh 20 MB Data. Han su dung truoc 14/10", 0, ("benign", "thong_bao")),
+        ("Quy khach duoc cong them 500 Viettel++ boi giao dich thang 04/2026", 0, ("benign", "thong_bao")),
+        ("Quy khach dung quen doi diem Viettel++ de nhan data mien phi", 0, ("spam", "tu_khoa_qc")),
     ],
 )
 def test_map_label_rules(msg, label, expected):
@@ -133,6 +153,56 @@ def test_fill_fee_in_parentheses_keeps_unit_once():
         assert out.count("/phut") == 1 and re.search(r"\((?:200|300|500|1000|2000)d/phut\)", out)
         out = _fill("soan KM gui [NUMBER] ([MONEY]) de dang ky", str(i))
         assert re.search(r"\(\d+d/tin\)", out)
+
+
+def test_fill_sms_fee_with_unit_already_in_text():
+    for i in range(40):
+        for unit in ("tin", "sms"):
+            out = _fill(f"gui 211 de cong 20 tin nhan ([MONEY]/{unit}), su dung 7 ngay", str(i))
+            assert re.search(rf"\((?:500|1000|2000|3000|5000|10000|15000)d/{unit}\)", out) and out.count(f"/{unit}") == 1
+
+
+def test_fill_tv360_is_restored_but_plain_numbers_are_not():
+    for i in range(10):
+        assert "tren TV360 theo" in _fill("Xem phim va truyen hinh tren [NUMBER] theo chuong trinh", str(i))
+        assert "xem TV360." in _fill("Dac biet, mien phi xem [NUMBER]. Goi cuoc gia han", str(i))
+        assert "goi cuoc TV360 Standard" in _fill("va goi cuoc [NUMBER] Standard de xem phim", str(i))
+        assert "TV360" not in _fill("Duoc xem [NUMBER] kenh truyen hinh", str(i))
+
+
+def test_fill_syntax_keyword_after_soan_is_a_code_not_a_shortcode():
+    for i in range(30):
+        out = _fill("Soan [NUMBER] gui 191: [MONEY]/30 ngay", str(i))
+        m = re.match(r"Soan (\S+) gui 191:", out)
+        assert m and m.group(1) in vi_sms._SYNTAX_CODES
+
+
+def test_fill_time_contexts_from_second_review():
+    for i in range(40):
+        # "trước ... hôm nay": giờ trong ngày
+        out = _fill("thanh toan truoc [TIME] hom nay", str(i))
+        assert re.search(r"truoc (\d{1,2})(?::\d{2}|h\d{0,2}) hom nay", out)
+        # đầu khoảng giờ phải sớm hơn cuối khoảng
+        out = _fill("tu [TIME] - 17h30 ngay 1/6", str(i))
+        assert 6 <= int(re.search(r"tu (\d{1,2})", out).group(1)) <= 10
+        # "dùng đến ... ngày đăng ký": cuối ngày, không phải số ngày
+        assert re.search(r"den (?:23h59|23:59|24h) ngay dang ky", _fill("su dung den [TIME] ngay dang ky", str(i)))
+        # "tầm ... trở lên" sau buổi trong ngày
+        out = _fill("giao giup e buoi chieu nha a tam [TIME] tro len cang tot", str(i))
+        assert re.search(r"tam \d{1,2}(?::\d{2}|h\d{0,2}) tro len", out)
+        # thời lượng gọi: phút
+        assert re.search(r"cong \d+ ?(?:phut|p) noi mang", _fill("de cong [TIME] noi mang", str(i)))
+        assert re.search(r"cuoc goi duoi \d+ ?(?:phut|p),", _fill("moi cuoc goi duoi [TIME], 3 ngay", str(i)))
+
+
+def test_fill_number_contexts_from_second_review():
+    for i in range(40):
+        assert re.fullmatch(r"\d{9,13}", _one(r"So TK thanh toan: (\S+)", "So TK thanh toan: [NUMBER] Ten", i))
+        assert re.fullmatch(r"\d{9,13}", _one(r"so tai khoan la: (\S+)\.", "so tai khoan la: [NUMBER]. Truy cap", i))
+        assert re.fullmatch(r"\d{8,12}", _one(r"Ten dang nhap: (\S+)", "Ten dang nhap: [NUMBER] Vui long", i))
+        assert 2 <= int(_one(r"duoi (\d+) kilomet", "va duoi [NUMBER] kilomet. Neu", i)) <= 50
+        assert re.fullmatch(r"20(?:24|25|26)", _one(r"Cup (\S+) tai", "chuong trinh Cup [NUMBER] tai https://x.vn", i))
+        assert re.fullmatch(r"0\d{9}", _one(r"cho Ban: (\S+),", "TANG 3K cho Ban: [NUMBER], soan V gui 999", i))
 
 
 def test_fill_call_fee_in_parentheses_is_small():
@@ -286,3 +356,16 @@ def test_build_message_pool_concatenates_and_keeps_columns(tmp_path):
     pd.DataFrame({"text": ["x"], "label": ["ham"]}).to_csv(bad, index=False)
     with pytest.raises(SystemExit):
         mod.build([bad], tmp_path / "o.csv", LABELS)
+
+
+def test_import_script_reports_locked_file_clearly(capsys):
+    spec = importlib.util.spec_from_file_location("import_vi_sms", ROOT / "scripts" / "import_vi_sms.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def locked(_path):
+        raise PermissionError(13, "Permission denied")
+
+    with pytest.raises(SystemExit) as e:
+        mod._save(Path("data/interim/vi_sms_review.csv"), locked)
+    assert "Excel" in str(e.value) and "vi_sms_review.csv" in str(e.value)
