@@ -1,19 +1,14 @@
 {
   "schema": "securechat.models/1",
-  "generatedAt": "2026-11-21T20:17:45.472Z",
-  "demo": true,
-  "message": {
-    "file": "message_model.json",
-    "modelVersion": "msg-29bd2d-e83c8b",
-    "bytes": 75580
-  },
+  "generatedAt": "2026-11-24T11:18:14.330Z",
+  "demo": false,
   "url": {
-    "kind": "rf",
-    "file": "url_rf.onnx",
+    "kind": "lr",
+    "file": "url_lr.json",
     "specFile": "url_spec.json",
-    "modelVersion": "url-24b1a4-ecce86",
-    "threshold": 0.026825079872204474,
-    "meetsBar": true,
-    "bytes": 42480
+    "modelVersion": "url-24b1a4-c1c13f",
+    "threshold": 0.9282060737322266,
+    "meetsBar": false,
+    "bytes": 1624
   }
 }
