@@ -1,0 +1,22 @@
+{
+  "input": 2991,
+  "empty_dropped": 0,
+  "conflict_dropped": 2,
+  "duplicates_dropped": 395,
+  "overrides_applied": 0,
+  "kept": 2594,
+  "label_counts": {
+    "spam": 1223,
+    "scam": 710,
+    "benign": 661
+  },
+  "rule_counts": {
+    "tu_khoa_qc": 873,
+    "label1": 710,
+    "tag_qc": 350,
+    "giao_dich_otp": 305,
+    "mac_dinh": 293,
+    "thong_bao": 63
+  },
+  "rows_with_leftover_tokens": 0
+}
