@@ -73,18 +73,29 @@ Ngoài phạm vi: tin nhắn không phải tiếng Việt, ảnh và mã QR, t�
 
 ## 5. Chạy trên thiết bị
 
-| Chỉ số | Giá trị |
-|---|---|
-| Kích thước model URL (LR, JSON) | 1,6 KB |
-| Kích thước model tin nhắn | / |
-| Thời gian nạp lần đầu | / |
-| Độ trễ phân tích (p50, p95, p99) cho tin nhắn, URL và một lần gửi tin | / |
-| Chi phí khi chạy cả hai model trong một lần gửi | / |
-| Chênh lệch khi bật và tắt AI | / |
-| Bộ nhớ, CPU | / |
-| Thiết bị và trình duyệt đã đo | / |
+Các số đo bằng trang `/bench` của frontend (`frontend/README.md`, mục 5.2). Mỗi dòng đo 5 lần khởi động và 50 lần tính.
 
-Các số này đo bằng trang `/bench` của frontend (`frontend/README.md`, mục 5.2), trên thiết bị yếu thật. Timeout hiện đặt tạm là 1500 ms và chỉ được chốt sau khi có số đo. Khi quá hạn, lỗi hoặc chưa nạp được model, ứng dụng hiện "AI không khả dụng" và vẫn cho gửi tin.
+| Chỉ số | Model URL (LR, JSON) | Model tin nhắn |
+|---|---|---|
+| Kích thước | 1,6 KB | / |
+| Nạp lần đầu | 16,8 ms (trong đó 7,7 ms ở engine) | / |
+| Lần gọi đầu sau khi nạp | 0,1 ms | / |
+| Độ trễ p50, p95, p99 | 0,1 ms, 0,2 đến 0,3 ms, 0,5 ms | / |
+| Một lần gửi tin (tin nhắn cùng 0, 1, 5 URL) | / | / |
+| Chênh lệch khi bật và tắt AI | / | / |
+| Bộ nhớ heap luồng chính | 3,7 MB lên 4,4 MB | / |
+| CPU và RAM của Worker | / | / |
+| Tác vụ dài trên luồng chính (trên 50 ms) | 0 lần | / |
+
+**Thiết bị đã đo (25/11/2026):** Acer Nitro 5 AN515-57, 12 luồng CPU, RAM 16 GB, Chrome 158 trên Windows, chạy bản build bằng `npm run preview`, Web Worker có sẵn, trang không ở chế độ cô lập nguồn gốc. Đây là máy cấu hình khá, chưa phải thiết bị yếu. Chưa đo trên thiết bị yếu hoặc điện thoại.
+
+**Độ chính xác.** Khi trang không cô lập nguồn gốc, trình duyệt làm tròn đồng hồ đo đến 0,1 ms, nên với model URL chỉ nên đọc kết quả là "dưới 1 ms". Phép đo này chỉ cho thấy model URL không phải nút cổ chai; thời gian chờ tối đa sẽ chốt theo p95 của model tin nhắn trên thiết bị yếu.
+
+**Công tắc tắt AI.** Khi tắt AI, cả ba ca gửi tin đều không có lần phân tích nào của model chạy ra kết quả (0 trên 50 lần mỗi ca). Luật dữ liệu nhạy cảm vẫn chạy khi AI tắt.
+
+**Thư viện ONNX.** Bản build có file WebAssembly của onnxruntime-web nặng 14,8 MB (3,9 MB khi nén gzip). File này chỉ được nạp khi manifest có model ONNX; model LR dạng JSON đang dùng không cần đến nó, đó là một lý do giữ LR cho phía client.
+
+Timeout hiện đặt tạm là 1500 ms và chỉ được chốt sau khi có số đo của model tin nhắn trên thiết bị yếu. Khi quá hạn, lỗi hoặc chưa nạp được model, ứng dụng hiện "AI không khả dụng" và vẫn cho gửi tin.
 
 ## 6. Tái lập
 
