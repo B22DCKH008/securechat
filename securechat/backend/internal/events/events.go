@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/securechat/backend/internal/domain"
 )
 
 type Type string
@@ -20,7 +21,8 @@ const (
 	TypeMessageRead      Type = "MessageRead"
 )
 
-const SchemaVersion = 1
+// v2 (additive): MessageAccepted.kind/system/ciphertexts for group chat.
+const SchemaVersion = 2
 
 // Envelope wraps every event. EventID is the dedupe key (KF5).
 type Envelope struct {
@@ -32,16 +34,24 @@ type Envelope struct {
 }
 
 // MessageAccepted payload. Contains ciphertext ONLY – no plaintext (KF12).
+//
+// Group messages leave Ciphertext empty and carry one pairwise copy per
+// recipient in Ciphertexts; the gateway pushes each recipient only its own copy
+// (as ciphertext/protocolMeta) and strips the list. Kind "system" events carry
+// server membership metadata in System and no ciphertext.
 type MessageAccepted struct {
-	MessageID       uuid.UUID       `json:"messageId"`
-	ClientMessageID string          `json:"clientMessageId"`
-	ConversationID  uuid.UUID       `json:"conversationId"`
-	Seq             int64           `json:"seq"`
-	SenderID        uuid.UUID       `json:"senderId"`
-	Recipients      []uuid.UUID     `json:"recipients"` // 1:1 → one element; group-ready (KF17)
-	Ciphertext      []byte          `json:"ciphertext"`
-	ProtocolMeta    json.RawMessage `json:"protocolMeta"`
-	AcceptedAt      time.Time       `json:"acceptedAt"` // for latency breakdown (EXP11)
+	MessageID       uuid.UUID                    `json:"messageId"`
+	ClientMessageID string                       `json:"clientMessageId"`
+	ConversationID  uuid.UUID                    `json:"conversationId"`
+	Seq             int64                        `json:"seq"`
+	SenderID        uuid.UUID                    `json:"senderId"`
+	Recipients      []uuid.UUID                  `json:"recipients"` // 1:1 → one element; group-ready (KF17)
+	Ciphertext      []byte                       `json:"ciphertext"`
+	ProtocolMeta    json.RawMessage              `json:"protocolMeta"`
+	AcceptedAt      time.Time                    `json:"acceptedAt"`     // for latency breakdown (EXP11)
+	Kind            string                       `json:"kind,omitempty"` // "" or "message" | "system"
+	System          *domain.SystemEvent          `json:"system,omitempty"`
+	Ciphertexts     []domain.RecipientCiphertext `json:"ciphertexts,omitempty"`
 }
 
 // Receipt payload for MessageDelivered / MessageRead.

@@ -38,6 +38,10 @@ type Config struct {
 	KafkaConsumerGroup   string // defaults to InstanceID: one group per instance (KF7)
 	KafkaStartFromLatest bool
 	KafkaStaticMember    bool
+	RetryMaxAttempts     int           // chat.retry attempts before chat.dlq (KF11)
+	RetryBaseDelay       time.Duration // first retry delay; doubles per attempt, full jitter
+	RetryMaxDelay        time.Duration
+	ConsumerLagInterval  time.Duration // KF9 lag metric period; 0 disables
 
 	DeliveryTransport DeliveryTransport
 
@@ -82,6 +86,10 @@ func Load() (Config, error) {
 		KafkaConsumerGroup:   env("KAFKA_CONSUMER_GROUP", ""),
 		KafkaStartFromLatest: envBool("KAFKA_START_FROM_LATEST", true),
 		KafkaStaticMember:    envBool("KAFKA_STATIC_MEMBERSHIP", true),
+		RetryMaxAttempts:     envInt("KAFKA_RETRY_MAX_ATTEMPTS", 5),
+		RetryBaseDelay:       envDuration("KAFKA_RETRY_BASE_DELAY", 500*time.Millisecond),
+		RetryMaxDelay:        envDuration("KAFKA_RETRY_MAX_DELAY", 30*time.Second),
+		ConsumerLagInterval:  envDuration("KAFKA_LAG_INTERVAL", 15*time.Second),
 
 		DeliveryTransport: DeliveryTransport(env("DELIVERY_TRANSPORT", string(TransportKafka))),
 
@@ -130,6 +138,12 @@ func (c Config) validate() error {
 	// Divide before multiplying to avoid overflow for invalid large settings.
 	if c.WSMaxFrameBytes <= 8*1024 || c.WSMaxMessageBytes > ((c.WSMaxFrameBytes-8*1024)/4)*3 {
 		return fmt.Errorf("WS_MAX_FRAME_BYTES must fit base64 ciphertext from WS_MAX_MESSAGE_BYTES plus 8192 bytes of envelope overhead")
+	}
+	if c.RetryMaxAttempts < 1 || c.RetryBaseDelay <= 0 || c.RetryMaxDelay < c.RetryBaseDelay || c.RetryMaxDelay > 5*time.Minute || c.ConsumerLagInterval < 0 {
+		return fmt.Errorf("invalid Kafka retry/lag configuration")
+	}
+	if c.PresenceTTL <= c.WSPingInterval+c.WSPongTimeout {
+		return fmt.Errorf("PRESENCE_TTL must exceed WS_PING_INTERVAL + WS_PONG_TIMEOUT so live connections do not expire")
 	}
 	switch c.DeliveryTransport {
 	case TransportKafka, TransportRedis:

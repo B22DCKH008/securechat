@@ -7,10 +7,12 @@ Kế hoạch gốc áp dụng đến hết dự án: [Word bốn tuần](docs/pl
 và [bản trích nội dung/bảng](docs/plans/SecureChat_4_Week_Engineering_Plan_Kafka.extracted.txt).
 Phân công, mốc nghiệm thu và cách theo dõi tại [PROJECT_PLAN.md](docs/PROJECT_PLAN.md).
 
-Phần BE1 đã được triển khai và kiểm chứng để bàn giao tích hợp BE2; lỗi consumer
-DLQ/offset thuộc BE2 vẫn mở. Xem
-[kế hoạch](docs/PROJECT_PLAN.md), [contract bàn giao](docs/be1-handoff.md) và
-[kết quả kiểm chứng](docs/verification-be1.md). Frontend/AI hiện vẫn là khung và contract.
+Phần BE1 đã được triển khai và kiểm chứng để bàn giao tích hợp BE2. BE2 đã sửa lỗi
+consumer DLQ/offset (P1), thêm chat.retry, consumer lag, presence TTL theo connection
+và Redis transport. Xem
+[kế hoạch](docs/PROJECT_PLAN.md), [bàn giao BE1](docs/be1-handoff.md),
+[bàn giao BE2](docs/be2-handoff.md), kiểm chứng [BE1](docs/verification-be1.md) và
+[BE2](docs/verification-be2.md). Frontend/AI hiện vẫn là khung và contract.
 
 ## Chạy nhanh
 
@@ -36,8 +38,9 @@ Metrics Prometheus: `/metrics` (bật Prometheus: `docker compose --profile obse
 client cần đọc [contract auth/sync](docs/be1-handoff.md) trước khi tích hợp.
 
 Giới hạn mặc định: ciphertext sau giải base64 64 KiB (`WS_MAX_MESSAGE_BYTES`),
-toàn bộ WS JSON 128 KiB (`WS_MAX_FRAME_BYTES`). Checklist bàn giao và lỗi
-DLQ/offset còn mở thuộc BE2 nằm trong [handoff](docs/be1-handoff.md).
+toàn bộ WS JSON 128 KiB (`WS_MAX_FRAME_BYTES`). Checklist bàn giao nằm trong
+[handoff BE1](docs/be1-handoff.md); semantics DLQ/retry/presence trong
+[handoff BE2](docs/be2-handoff.md).
 
 ## Cấu trúc
 

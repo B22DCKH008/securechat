@@ -64,6 +64,104 @@ func (a *api) createConversation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, c)
 }
 
+// ---- groups (pairwise fan-out, RS31/RS34) ----
+
+func (a *api) createGroup(w http.ResponseWriter, r *http.Request) {
+	uid, _ := auth.UserID(r.Context())
+	var req struct {
+		Title         string      `json:"title"`
+		MemberUserIDs []uuid.UUID `json:"memberUserIds"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	c, err := a.Messaging.CreateGroup(r.Context(), uid, req.Title, req.MemberUserIDs)
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, c)
+}
+
+func (a *api) renameGroup(w http.ResponseWriter, r *http.Request) {
+	uid, _ := auth.UserID(r.Context())
+	convID, err := pathUUID(r, "id")
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	if err := a.Messaging.RenameGroup(r.Context(), uid, convID, req.Title); err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) listMembers(w http.ResponseWriter, r *http.Request) {
+	uid, _ := auth.UserID(r.Context())
+	convID, err := pathUUID(r, "id")
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	members, err := a.Messaging.ListMembers(r.Context(), uid, convID)
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": members})
+}
+
+func (a *api) addMembers(w http.ResponseWriter, r *http.Request) {
+	uid, _ := auth.UserID(r.Context())
+	convID, err := pathUUID(r, "id")
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	var req struct {
+		UserIDs []uuid.UUID `json:"userIds"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	members, err := a.Messaging.AddMembers(r.Context(), uid, convID, req.UserIDs)
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": members})
+}
+
+// removeMember: owner removes {userId}; any member removes itself to leave.
+func (a *api) removeMember(w http.ResponseWriter, r *http.Request) {
+	uid, _ := auth.UserID(r.Context())
+	convID, err := pathUUID(r, "id")
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	target, err := pathUUID(r, "userId")
+	if err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	if err := a.Messaging.RemoveMember(r.Context(), uid, convID, target); err != nil {
+		writeError(w, a.Log, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ---- messages ----
 
 // history: GET /v1/conversations/{id}/messages?before_seq=&limit=  (cursor pagination, RS8)
@@ -98,10 +196,11 @@ func (a *api) history(w http.ResponseWriter, r *http.Request) {
 }
 
 type sendRequest struct {
-	ClientMessageID string          `json:"clientMessageId"`
-	Ciphertext      []byte          `json:"ciphertext"`
-	ProtocolMeta    json.RawMessage `json:"protocolMeta"`
-	ClientCreatedAt *time.Time      `json:"clientCreatedAt,omitempty"`
+	ClientMessageID string                       `json:"clientMessageId"`
+	Ciphertext      []byte                       `json:"ciphertext,omitempty"`
+	Ciphertexts     []domain.RecipientCiphertext `json:"ciphertexts,omitempty"` // group
+	ProtocolMeta    json.RawMessage              `json:"protocolMeta"`
+	ClientCreatedAt *time.Time                   `json:"clientCreatedAt,omitempty"`
 }
 
 // sendMessage: REST fallback for sending (same semantics as WS "send").
@@ -119,7 +218,7 @@ func (a *api) sendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := a.Messaging.Send(r.Context(), domain.SendCommand{
 		SenderID: uid, ClientMessageID: req.ClientMessageID, ConversationID: convID,
-		Ciphertext: req.Ciphertext, ProtocolMeta: req.ProtocolMeta, ClientCreatedAt: req.ClientCreatedAt,
+		Ciphertext: req.Ciphertext, Ciphertexts: req.Ciphertexts, ProtocolMeta: req.ProtocolMeta, ClientCreatedAt: req.ClientCreatedAt,
 	})
 	if err != nil {
 		writeError(w, a.Log, err)
@@ -169,12 +268,13 @@ func (a *api) sync(w http.ResponseWriter, r *http.Request) {
 		writeError(w, a.Log, err)
 		return
 	}
-	res, err := a.Messaging.SyncWithReceipts(r.Context(), uid, req.Cursors, req.ReceiptCursors, req.Limit)
+	res, left, err := a.Messaging.SyncFull(r.Context(), uid, req.Cursors, req.ReceiptCursors, req.Limit)
 	if err != nil {
 		writeError(w, a.Log, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"conversations": res})
+	// "left": conversations in the cursors the user was removed from or left.
+	writeJSON(w, http.StatusOK, map[string]any{"conversations": res, "left": left})
 }
 
 // ---- keys (Signal pre-key directory, public material only) ----

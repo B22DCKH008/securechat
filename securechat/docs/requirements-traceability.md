@@ -17,6 +17,12 @@ Lỗi commit offset khi publish DLQ thất bại vẫn mở, thuộc BE2 (KF5/KF
 Kết quả mới và giới hạn nằm trong [verification](verification-be1.md), checklist
 nghiệm thu và cách tái hiện DLQ nằm trong [handoff](be1-handoff.md).
 
+BE2 cập nhật 2026-11-21: đã sửa lỗi commit offset khi DLQ lỗi, thêm chat.retry,
+consumer lag, presence TTL theo connection, dọn presence instance chết, Redis
+publisher và k6 dùng đăng ký thật. Linux race với PostgreSQL/Kafka/Redis thật:
+49 case PASS (26 unit + 23 integration). Xem [bàn giao BE2](be2-handoff.md) và
+[verification BE2](verification-be2.md).
+
 ## A. Messaging, delivery, consistency
 | ID | Trạng thái | Code | Ghi chú / việc còn lại |
 |---|---|---|---|
@@ -37,12 +43,25 @@ nghiệm thu và cách tái hiện DLQ nằm trong [handoff](be1-handoff.md).
 | RS11 | ✅ | `gateway.Handler.ServeHTTP` (JWT/session trước khi upgrade) | Ciphertext/frame có budget riêng; socket boundary regression PASS. ⬜ token qua subprotocol thay vì query |
 | RS12 | ✅ | `presence.Registry` (Redis HASH) | |
 | RS13 | ✅ | consumer group = INSTANCE_ID, `delivery.Router` | Đã chạy thử gw-A → gw-B |
-| RS14 | 🟡 | ping/pong `conn.writeLoop`, TTL refresh | ⬜ TTL theo từng connection |
+| RS14 | ✅ | ping/pong `conn.writeLoop`, `presence.Registry` HEXPIRE theo connection | Redis ≥ 7.4; integration `TestPresencePerConnectionTTLAndInstanceCleanup` |
 | RS15 | 🟡 | server gửi frame `resync` khi connect | ⬜ FE1: backoff+jitter client |
-| RS16 | 🧪 | `bench/k6/reconnect_storm.js` | |
+| RS16 | 🧪 | `bench/k6/reconnect_storm.js` | 50 VU không jitter: 100 % upgrade + resync; còn so sánh jitter, 100 VU |
 | RS17/18 | ✅ | bounded `send` chan, đóng slow consumer | 🧪 đo queue growth |
 | RS19/40 | ✅ basic | `ratelimit.Limiter`, `WS_MAX_CONNS_PER_USER` | |
 | RS20 | ✅ | heartbeat timeout → close + unregister | |
+
+## D. Group chat & fan-out
+
+BE2 cập nhật 2026-11-22: group chat theo pairwise fan-out (user chọn). Chi tiết
+trong [BE2 handoff](be2-handoff.md#group-chat--pairwise-fan-out-rs31-rs34-kf17-2026-11-22).
+
+| ID | Trạng thái | Nơi implement | Ghi chú |
+|---|---|---|---|
+| RS31 | ✅ / 🧪 | `messaging.Send` + `message_recipients`; router đẩy từng bản | Fan-out on write, một bản ciphertext/người nhận; chưa đo tải |
+| RS32 | ⬜ | – | Fan-out on read chưa làm (pairwise cần bản riêng cho từng người) |
+| RS33 | 🟡 | tối đa 32 thành viên; metric `securechat_group_fanout_recipients` | Chưa có k6 group lớn |
+| RS34 | ✅ | `joined_seq`, `conversation_departures`, system messages, owner/member | Người vào sau chỉ thấy seq > joinedSeq; người bị xoá mất quyền, sync trả `left` |
+| RS35 | ⬜ | – | Sender Keys không làm; pairwise dùng session 1-1 |
 
 ## C/E. Scaling, reliability
 | ID | Trạng thái | Code | Ghi chú |
@@ -51,8 +70,8 @@ nghiệm thu và cách tái hiện DLQ nằm trong [handoff](be1-handoff.md).
 | RS23 | 🟡 | `POSTGRES_MAX_CONNS` | đo |
 | RS25 | ✅ | index `(conversation_id, seq)` | |
 | RS27 | ✅ | `conversations.last_seq` | 🧪 hot conversation |
-| RS29 | 🟡 | graceful shutdown đóng WS; Kafka group riêng | ⬜ dọn presence của instance chết |
-| RS36 | ✅ | relay backoff + full jitter | ⬜ chat.retry |
+| RS29 | ✅ | graceful shutdown đóng WS; Kafka group riêng; `Registry.CleanupInstance` khi start/stop | TTL theo connection tự hết hạn nếu instance chết hẳn |
+| RS36 | ✅ | relay backoff + full jitter; consumer `chat.retry` backoff + jitter | |
 | RS37 | ✅ | error `internal` → "retry with same clientMessageId" | |
 | RS38/39 | ✅ | readiness chỉ cần Postgres; Redis fail-open | 🧪 EXP |
 | RS41/42 | 🟡 | bounded queues | load shedding BONUS |
@@ -75,19 +94,19 @@ nghiệm thu và cách tái hiện DLQ nằm trong [handoff](be1-handoff.md).
 | KF2 | ✅ | `outbox.Relay` (poll theo id, `pg_try_advisory_lock`, mark sau ack) |
 | KF3 | ✅ | `platform/kafka.NewProducer` acks=all + idempotent |
 | KF4 | ✅ | key = conversationId; client order theo seq |
-| KF5 | 🟡 | `delivery.Dedupe` theo eventId (+ client dedupe); BE2 cần sửa việc nhớ eventId trước khi payload validation thành công để bảo toàn replay khi DLQ lỗi |
-| KF6 | 🟡 | Có `CommitRecords` sau batch, nhưng vẫn commit khi publish DLQ thất bại; BE2 cần sửa |
+| KF5 | ✅ | `delivery.Dedupe` theo eventId, chỉ ghi nhớ sau khi xử lý thành công (+ client dedupe) |
+| KF6 | ✅ | Commit prefix liên tục đã xong theo partition; DLQ/retry lỗi → không commit, `SetOffsets` tua lại; `BlockRebalanceOnPoll`; integration `TestDLQOutageDoesNotCommitPastPoison` |
 | KF7 | ✅ / 🧪 | group riêng mỗi instance; đo read amplification |
 | KF8 | ✅ | kiểm tra lại 2026-11-12 trên image mới: Kafka down + restart API → vẫn accepted, 5 message + 1 receipt, backlog 6 → 0; xem verification |
-| KF9 | ⬜ | consumer lag metric (kadm hoặc kafka-exporter) |
-| KF10 | 🟡 | static membership `KAFKA_STATIC_MEMBERSHIP` |
-| KF11 | 🟡 | Có DLQ publisher nhưng chưa bảo toàn replay khi publish lỗi; chat.retry ⬜ |
+| KF9 | 🟡 | `securechat_kafka_consumer_lag{group,topic}` (kadm); slow WS consumer vẫn đóng kết nối; 🧪 đo slow consumer |
+| KF10 | 🟡 | static membership; `BlockRebalanceOnPoll`; replay sau restart đã test; rebalance nhiều member chưa test |
+| KF11 | ✅ | DLQ chỉ commit sau broker ACK; chat.retry theo group instance, hết lượt → DLQ |
 | KF12 | 🟡 | retention ngắn trong `create-topics.sh`; scan script |
 | KF13 | ✅ | `events.Envelope` + JSON schema `api/events/` |
 | KF14 | ✅ | `deploy/kafka/create-topics.sh` (RF=1, không HA) |
 | KF15 | ✅ | `PurgePublishedOutbox` mỗi phút |
-| KF16 | 🟡 | `DELIVERY_TRANSPORT`, `RedisSubscriber` ✅; Redis publisher ⬜ |
-| KF17 | 🟡 | payload `recipients[]` sẵn cho group |
+| KF16 | ✅ / 🧪 | `RedisPublisher` + `RedisSubscriber`; còn đo EXP13 |
+| KF17 | ✅ / 🧪 | `MessageAccepted` v2 `ciphertexts[]`; router đẩy mỗi người đúng bản của mình | Test Kafka thật 2 instance; chưa đo tải group |
 
 ## I. Infra / observability
 | ID | Trạng thái | Code |
@@ -95,6 +114,6 @@ nghiệm thu và cách tái hiện DLQ nằm trong [handoff](be1-handoff.md).
 | INF1 | ✅ | `docker-compose.yml` |
 | INF2 | ✅ | `internal/config`, `.env.example`, `migrations/`; `WS_MAX_FRAME_BYTES` độc lập ciphertext, startup kiểm tra budget |
 | INF3 | ✅ (BE1) | Redaction/không in query/body; access log chỉ lưu route template hoặc `unmatched`; regression gồm 404/405, escaped path và redirect. Privacy toàn hệ thống còn phụ thuộc SC7/KF12 |
-| INF4 | 🟡 | `internal/metrics` (thiếu consumer lag) |
+| INF4 | ✅ | `internal/metrics` gồm consumer lag, DLQ/retry, partition blocked, presence errors |
 | INF5 | 🧪 | |
 | INF6 | ✅ | Kafka KRaft 1 broker + init script |

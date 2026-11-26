@@ -392,7 +392,7 @@ func (allowAll) Allow(context.Context, string, string) bool { return true }
 type noPresence struct{}
 
 func (noPresence) Register(context.Context, uuid.UUID, string) error   { return nil }
-func (noPresence) Refresh(context.Context, uuid.UUID) error            { return nil }
+func (noPresence) Refresh(context.Context, uuid.UUID, string) error    { return nil }
 func (noPresence) Unregister(context.Context, uuid.UUID, string) error { return nil }
 func server(t *testing.T, f *fixture) (*httptest.Server, *auth.Service, *gateway.Hub) {
 	t.Helper()

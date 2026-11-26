@@ -16,6 +16,9 @@ var (
 		Name: "securechat_messages_duplicate_total", Help: "Idempotent retries returning an existing message (RS2)."})
 	SendLatency = promauto.NewHistogram(prometheus.HistogramOpts{
 		Name: "securechat_send_accept_seconds", Help: "Server time from receive to server-accepted ACK.", Buckets: latencyBuckets})
+	GroupFanout = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name: "securechat_group_fanout_recipients", Help: "Pairwise ciphertext copies per accepted group message (RS31, KF17).",
+		Buckets: []float64{1, 2, 4, 8, 16, 31}})
 
 	OutboxBacklog = promauto.NewGauge(prometheus.GaugeOpts{
 		Name: "securechat_outbox_backlog", Help: "Unpublished outbox rows (EXP12)."})
@@ -50,6 +53,20 @@ var (
 	RateLimited = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "securechat_rate_limited_total"}, []string{"scope"})
 
-	// TODO(BE2, INF4/KF9): consumer lag. Either add a kafka-exporter container to
-	// docker-compose, or compute lag with github.com/twmb/franz-go/pkg/kadm.
+	EventsDLQFailed = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "securechat_delivery_dlq_publish_failed_total", Help: "DLQ copies not acknowledged; source offset kept for replay (KF6/KF11)."})
+	EventsRetried = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "securechat_delivery_events_retried_total", Help: "Transient failures copied to chat.retry (KF11)."})
+	ConsumerPartitionBlocked = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "securechat_delivery_partition_blocked_total", Help: "Times a partition stopped at an unfinished record and was rewound."})
+
+	// KF9 / INF4: committed-offset lag of this instance's consumer groups,
+	// summed over partitions. Labels are bounded (group, topic).
+	ConsumerLag = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "securechat_kafka_consumer_lag", Help: "Log end offset minus committed offset, summed per topic."}, []string{"group", "topic"})
+	ConsumerLagErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "securechat_kafka_consumer_lag_errors_total", Help: "Failed lag measurements."})
+
+	PresenceErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "securechat_presence_errors_total", Help: "Redis presence operations that failed (advisory path, RS39)."}, []string{"op"})
 )

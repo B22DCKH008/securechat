@@ -12,6 +12,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/twmb/franz-go v1.22.2
+	github.com/twmb/franz-go/pkg/kadm v1.19.0
 	golang.org/x/crypto v0.57.0
 )
 

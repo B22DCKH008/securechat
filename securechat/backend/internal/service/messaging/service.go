@@ -49,13 +49,7 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 	if err := cmd.Validate(s.maxCiphertext); err != nil {
 		return domain.SendResult{}, err
 	}
-	if len(cmd.ProtocolMeta) == 0 {
-		cmd.ProtocolMeta = json.RawMessage(`{}`)
-	}
-	if cmd.ClientCreatedAt != nil {
-		at := cmd.ClientCreatedAt.UTC().Truncate(time.Microsecond)
-		cmd.ClientCreatedAt = &at
-	}
+	cmd.Normalize()
 	if err := s.requireMember(ctx, cmd.ConversationID, cmd.SenderID); err != nil {
 		return domain.SendResult{}, err
 	}
@@ -72,12 +66,26 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 		if err := store.LockMember(ctx, tx, cmd.ConversationID, cmd.SenderID); err != nil {
 			return err
 		}
-		seq, err := store.NextSeq(ctx, tx, cmd.ConversationID)
+		// The conversation row lock also serialises membership changes, so the
+		// member set read below cannot change before commit.
+		seq, kind, err := store.NextSeqForKind(ctx, tx, cmd.ConversationID)
 		if err != nil {
 			return fmt.Errorf("next seq: %w", err)
 		}
+		if (kind == domain.KindGroup) != cmd.IsGroup() {
+			return domain.ErrInvalidInput // direct needs ciphertext, group needs ciphertexts
+		}
+		members, err := store.Members(ctx, tx, cmd.ConversationID)
+		if err != nil {
+			return err
+		}
+		recipients := without(members, cmd.SenderID)
+		if cmd.IsGroup() && !coversExactly(cmd.Ciphertexts, recipients) {
+			return domain.ErrMembershipChanged
+		}
 		msg = domain.Message{
 			ID:              uuid.New(),
+			Kind:            domain.MessageKindText,
 			ClientMessageID: cmd.ClientMessageID,
 			ConversationID:  cmd.ConversationID,
 			Seq:             seq,
@@ -94,10 +102,10 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 		if !inserted {
 			return errLostIdempotencyRace // rollback also undoes the seq increment
 		}
-
-		members, err := store.Members(ctx, tx, cmd.ConversationID)
-		if err != nil {
-			return err
+		if cmd.IsGroup() {
+			if err := store.InsertRecipientCiphertexts(ctx, tx, msg.ID, cmd.Ciphertexts); err != nil {
+				return fmt.Errorf("insert recipient ciphertexts: %w", err)
+			}
 		}
 		env, err := events.New(events.TypeMessageAccepted, events.MessageAccepted{
 			MessageID:       msg.ID,
@@ -105,10 +113,11 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 			ConversationID:  msg.ConversationID,
 			Seq:             msg.Seq,
 			SenderID:        msg.SenderID,
-			Recipients:      without(members, msg.SenderID),
+			Recipients:      recipients,
 			Ciphertext:      msg.Ciphertext,
 			ProtocolMeta:    msg.ProtocolMeta,
 			AcceptedAt:      msg.CreatedAt,
+			Ciphertexts:     cmd.Ciphertexts,
 		}, msg.CreatedAt)
 		if err != nil {
 			return err
@@ -127,16 +136,46 @@ func (s *Service) Send(ctx context.Context, cmd domain.SendCommand) (domain.Send
 		return domain.SendResult{}, err
 	}
 	metrics.MessagesAccepted.Inc()
+	if cmd.IsGroup() {
+		metrics.GroupFanout.Observe(float64(len(cmd.Ciphertexts)))
+	}
 	return domain.SendResult{Message: msg}, nil
+}
+
+// coversExactly reports whether copies address every recipient exactly once
+// (Validate already rejected duplicates and the sender).
+func coversExactly(copies []domain.RecipientCiphertext, recipients []uuid.UUID) bool {
+	if len(copies) != len(recipients) {
+		return false
+	}
+	want := make(map[uuid.UUID]bool, len(recipients))
+	for _, id := range recipients {
+		want[id] = true
+	}
+	for _, c := range copies {
+		if !want[c.RecipientID] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Service) duplicate(ctx context.Context, m domain.Message, cmd domain.SendCommand) (domain.SendResult, error) {
 	if m.ConversationID != cmd.ConversationID {
 		return domain.SendResult{}, domain.ErrConflict
 	}
+	if m.Kind == domain.MessageKindSystem {
+		return domain.SendResult{}, domain.ErrConflict
+	}
 	match, err := store.MatchesRetry(ctx, s.pool, m.ID, cmd)
 	if err != nil {
 		return domain.SendResult{}, err
+	}
+	if match && cmd.IsGroup() {
+		match, err = store.MatchesRecipientCopies(ctx, s.pool, m.ID, cmd.Ciphertexts)
+		if err != nil {
+			return domain.SendResult{}, err
+		}
 	}
 	if !match {
 		return domain.SendResult{}, domain.ErrConflict
@@ -160,10 +199,17 @@ func (s *Service) Acknowledge(ctx context.Context, userID, messageID uuid.UUID, 
 	if msg.SenderID == userID {
 		return domain.ErrNotMember // Only a recipient establishes delivered/read.
 	}
+	if msg.Kind == domain.MessageKindSystem {
+		return domain.ErrInvalidInput // system messages have no receipts
+	}
 
 	return postgres.WithTx(ctx, s.pool, func(tx pgx.Tx) error {
-		if err := store.LockMember(ctx, tx, msg.ConversationID, userID); err != nil {
+		member, err := store.LockMemberShare(ctx, tx, msg.ConversationID, userID)
+		if err != nil {
 			return err
+		}
+		if msg.Seq <= member.JoinedSeq {
+			return domain.ErrNotMember // joined after this group message
 		}
 		if _, err := tx.Exec(ctx, `SELECT id FROM conversations WHERE id=$1 FOR UPDATE`, msg.ConversationID); err != nil {
 			return err
@@ -198,10 +244,11 @@ func (s *Service) History(ctx context.Context, userID, convID uuid.UUID, beforeS
 	if beforeSeq < 0 {
 		return nil, domain.ErrInvalidInput
 	}
-	if err := s.requireMember(ctx, convID, userID); err != nil {
+	member, err := store.Membership(ctx, s.pool, convID, userID)
+	if err != nil {
 		return nil, err
 	}
-	messages, err := store.MessagesBefore(ctx, s.pool, convID, beforeSeq, clampLimit(limit))
+	messages, err := store.MessagesBeforeFor(ctx, s.pool, convID, userID, beforeSeq, member.JoinedSeq, clampLimit(limit))
 	if err != nil {
 		return nil, err
 	}
@@ -227,47 +274,64 @@ func (s *Service) Sync(ctx context.Context, userID uuid.UUID, cursors map[uuid.U
 }
 
 func (s *Service) SyncWithReceipts(ctx context.Context, userID uuid.UUID, cursors, receiptCursors map[uuid.UUID]int64, limit int) ([]SyncResult, error) {
+	out, _, err := s.SyncFull(ctx, userID, cursors, receiptCursors, limit)
+	return out, err
+}
+
+// SyncFull also reports group conversations in the cursors that the user was
+// removed from or left (their cursors are ignored instead of failing the sync).
+// A cursor for a conversation the user never belonged to still fails (SC5).
+func (s *Service) SyncFull(ctx context.Context, userID uuid.UUID, cursors, receiptCursors map[uuid.UUID]int64, limit int) ([]SyncResult, []domain.Departure, error) {
 	if limit < 0 || limit > 200 {
-		return nil, domain.ErrInvalidInput
+		return nil, nil, domain.ErrInvalidInput
 	}
 	if len(cursors) > 500 || len(receiptCursors) > 500 {
-		return nil, domain.ErrInvalidInput
+		return nil, nil, domain.ErrInvalidInput
 	}
 	for _, cursor := range cursors {
 		if cursor < 0 {
-			return nil, domain.ErrInvalidInput
+			return nil, nil, domain.ErrInvalidInput
 		}
 	}
 	for _, cursor := range receiptCursors {
 		if cursor < 0 {
-			return nil, domain.ErrInvalidInput
+			return nil, nil, domain.ErrInvalidInput
 		}
 	}
 	limit = clampLimit(limit)
 	convs, err := store.ListConversations(ctx, s.pool, userID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	members := make(map[uuid.UUID]bool, len(convs))
 	for _, c := range convs {
 		members[c.ID] = true
 	}
-	for id := range cursors {
-		if !members[id] {
-			return nil, domain.ErrNotMember
+	var foreign []uuid.UUID
+	seen := make(map[uuid.UUID]bool)
+	for _, m := range []map[uuid.UUID]int64{cursors, receiptCursors} {
+		for id := range m {
+			if !members[id] && !seen[id] {
+				seen[id] = true
+				foreign = append(foreign, id)
+			}
 		}
 	}
-	for id := range receiptCursors {
-		if !members[id] {
-			return nil, domain.ErrNotMember
+	departures := []domain.Departure{}
+	if len(foreign) > 0 {
+		if departures, err = store.Departures(ctx, s.pool, userID, foreign); err != nil {
+			return nil, nil, err
+		}
+		if len(departures) != len(foreign) {
+			return nil, nil, domain.ErrNotMember
 		}
 	}
 	out := make([]SyncResult, 0, len(convs))
 	for _, c := range convs {
 		cursor := cursors[c.ID]
-		msgs, err := store.MessagesAfter(ctx, s.pool, c.ID, cursor, limit+1)
+		msgs, err := store.MessagesAfterFor(ctx, s.pool, c.ID, userID, cursor, c.JoinedSeq, limit+1)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		res := SyncResult{ConversationID: c.ID, NextCursor: cursor, NextReceiptCursor: receiptCursors[c.ID]}
 		if len(msgs) > limit {
@@ -278,9 +342,9 @@ func (s *Service) SyncWithReceipts(ctx context.Context, userID uuid.UUID, cursor
 			res.NextCursor = msgs[len(msgs)-1].Seq
 		}
 		res.Messages = msgs
-		receipts, err := store.ReceiptChangesAfter(ctx, s.pool, c.ID, receiptCursors[c.ID], limit+1)
+		receipts, err := store.ReceiptChangesAfter(ctx, s.pool, c.ID, receiptCursors[c.ID], c.JoinedSeq, limit+1)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if len(receipts) > limit {
 			receipts, res.HasMoreReceipts = receipts[:limit], true
@@ -296,7 +360,7 @@ func (s *Service) SyncWithReceipts(ctx context.Context, userID uuid.UUID, cursor
 	}
 	// TODO(BE1, RS22): one query per conversation is fine for MVP; batch with
 	// LATERAL join if the DB benchmark shows it matters.
-	return out, nil
+	return out, departures, nil
 }
 
 // Bound each message page to roughly 1 MiB serialized, in addition to row count.
