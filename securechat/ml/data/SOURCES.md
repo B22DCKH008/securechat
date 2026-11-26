@@ -20,9 +20,11 @@ Giá trị SHA-256 của các tệp đã tải và của tập test gán tay:
 | `url_val.csv` (PhishVN) | `d9ef64d29df6639af698ef228e5af5ec6f8ae44c8f1a1dd1367f9ba6d073d81f` |
 | `url_test.csv` (PhishVN) | `b692882e8ae26b2c0b217c090e92d3a19307a26acbfb3c8c89692db26d409bc9` |
 | `full_dataset.csv` (vietnamese_sms_dataset, commit `464a028`, bản clone trên Windows) | `8c86ceea0aa6a4f8588636894075fa1c4579efc1713837523a798eb7601635da` |
-| `messages_handlabeled.csv` | `/` |
+| `messages_handlabeled.csv` | `8fe3ae9327b53ec340e3a9d17737ed73ec3d6b9ade180dee7418f4eb3bb63a75` |
 
 Tệp `full_dataset.csv` được tính trên bản clone ở Windows, nơi Git đổi ký tự xuống dòng LF thành CRLF. Bản LF nguyên gốc trong kho có SHA-256 `710cd7b56ef1b4aa82e72c1be0f46a5c89a5fdce8382b30874b3cea494d16e3e` (blob Git `361a893c3800e9ac72d94432f2e06e59f6fcbda1`); hai bản có cùng nội dung và cho cùng kết quả khi chạy `scripts/import_vi_sms.py`.
+
+Tệp `messages_handlabeled.csv` được khóa ngày 27/11/2026 và giữ nguyên từng byte như khi lưu trên Windows (UTF-8 có BOM, xuống dòng CRLF). `.gitattributes` đặt `-text` cho tệp này để Git không đổi ký tự xuống dòng, nên mã băm ở trên khớp trên mọi máy.
 
 ## 3. Ghi công
 
@@ -39,8 +41,8 @@ Giấy phép CC BY 4.0 yêu cầu nêu nguồn và các chỉnh sửa đã thự
 | Nguồn | Liên kết | Giấy phép | Số mẫu | Nhãn gốc và nhãn của dự án | Ghi chú |
 |---|---|---|---|---|---|
 | Vietnamese SMS Dataset with Quality Assurance (Tran Nguyen Thai Tuan và cộng sự) | https://github.com/trannguyenthaituan251209/vietnamese_sms_dataset | CC BY 4.0 (theo README của kho) | 2.991 tin; còn 2.577 sau khi bỏ tin tiếng Anh và tin trùng | Nhãn gốc 0 và 1. Nhãn 1 thành `scam`; nhãn 0 thành `spam` (tin quảng cáo) hoặc `benign` theo luật trong `src/securechat_ml/data/vi_sms.py` | Huấn luyện và validation, `source=real`. Chuyển bằng `scripts/import_vi_sms.py`. Không dùng `train.csv` và `test.csv` của bộ này vì 97 trong 597 tin của `test.csv` gần trùng với `train.csv`. Toàn bộ là tin SMS, không có tin trò chuyện |
-| Tin nhắn tự viết hoặc tự thu thập (có xin phép, đã ẩn danh) | / | Tự quản lý | / | Gán nhãn tay | Chỉ dùng cho `messages_handlabeled.csv` (tập test); phải xóa số điện thoại, số tài khoản và tên thật. Cách viết và gán nhãn nêu trong `LABELING_GUIDE.md` |
-| Dữ liệu tổng hợp bằng AI | Xem `SYNTHETIC_SPEC.md` | Tự tạo | / | / | Chỉ dùng cho huấn luyện, và cho validation khi thiếu dữ liệu thật |
+| Tin nhắn tự viết hoặc tự thu thập (có xin phép, đã ẩn danh) | / | Tự quản lý | 300 (100 mỗi nhãn) | Gán nhãn tay | Chỉ dùng cho `messages_handlabeled.csv` (tập test), khóa ngày 27/11/2026. Soạn theo khung tình huống trong `LABELING_GUIDE.md`, dùng thông tin giả (số điện thoại, số tài khoản, tên, liên kết). Bản soạn đầu (26/11/2026) có AI sinh nên bị loại khỏi tập test và chuyển thành dữ liệu tổng hợp ở dòng dưới; tập hiện tại do người thực hiện soạn lại và gán nhãn trong các ngày 26 đến 27/11/2026. Độ nhất quán của nhãn: xem `reports/handlabel_kappa.md` |
+| Dữ liệu tổng hợp bằng AI | Xem `SYNTHETIC_SPEC.md` | Tự tạo | 300 (đợt 1, 100 mỗi nhãn, tệp `messages_ai_synthetic_v0.csv`) | Nhãn theo kịch bản sinh | Chỉ dùng cho huấn luyện, và cho validation khi thiếu dữ liệu thật. Sinh ngày 26/11/2026, trước khi soạn lại tập test hiện tại; cột `source` là `synthetic` |
 
 ## 5. Quy ước
 

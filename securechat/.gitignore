@@ -7,6 +7,7 @@
 /ml/data/raw/*
 /ml/data/processed/*
 !/ml/data/**/.gitkeep
+!/ml/data/raw/messages_handlabeled.csv
 /ml/models/artifacts/*
 !/ml/models/artifacts/.gitkeep
 __pycache__/

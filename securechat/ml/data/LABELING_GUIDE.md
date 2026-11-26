@@ -77,8 +77,13 @@ Các tình huống ranh giới:
 | Tin tuyển cộng tác viên "nhấn đơn, hoa hồng 30%/ngày, nạp trước để nhận nhiệm vụ" | `scam` | Lợi nhuận bất thường kèm yêu cầu nạp tiền |
 | Mời vào nhóm học tiếng Anh miễn phí qua liên kết thật | `spam` | Chào mời không mời |
 | Nhắc lịch, nhắc nộp bài do người quen gửi, có liên kết | `benign` | Trao đổi bình thường |
+| Tuyển cộng tác viên "làm nhiệm vụ", tương tác video, kiểm đơn, hoa hồng theo nhiệm vụ (không bán hàng thật), chưa đòi tiền | `scam` | Phễu lừa cộng tác viên; chọn theo hậu quả với người nhận |
+| Người lạ chào bán hàng kèm liên kết không dẫn tới trang đăng nhập hoặc thanh toán | `spam` | Liên kết trong tin chào bán không làm tin thành `scam` |
+| Mời tải ứng dụng và nhập mã giới thiệu để nhận điểm thưởng | `spam` | Chào mời có điều kiện, gần `scam` nên đặt `hard=1` |
 
 Nếu một tin vẫn khó quyết định sau khi đối chiếu bảng trên, chọn nhãn theo hậu quả với người nhận nếu làm theo tin đó (mất tiền hoặc thông tin thì `scam`, chỉ bị làm phiền thì `spam`), ghi lý do vào `note` và đặt `hard=1`.
+
+Tin mà nhãn chỉ khác nhau nhờ người gửi (ví dụ "cho mình mượn 300k" từ bạn thân hoặc từ số lạ xưng là người quen) thì mô hình không có thông tin để phân biệt. Gán nhãn theo kịch bản dự kiến, ghi `note` là "cần ngữ cảnh người gửi", và khi báo cáo nêu kết quả trên cả tập lẫn trên tập bỏ các dòng này.
 
 ## 5. Ca khó (`hard=1`)
 
@@ -108,7 +113,7 @@ b = pd.read_csv("lan2.csv")["label"]
 print(cohen_kappa_score(a, b))
 ```
 
-Nên ghi cả kappa và danh sách các tin hai lần gán khác nhau (kèm nhãn cuối cùng và lý do) vào báo cáo. Kappa dưới 0,6 cho thấy ranh giới nhãn chưa rõ, cần bổ sung quy tắc ở mục 4 trước khi gán tiếp.
+Nên ghi cả kappa và danh sách các tin hai lần gán khác nhau (kèm nhãn cuối cùng và lý do) vào báo cáo. Kappa dưới 0,6 cho thấy ranh giới nhãn chưa rõ, cần bổ sung quy tắc ở mục 4 trước khi gán tiếp. Kết quả của tập test hiện tại nằm ở `reports/handlabel_kappa.md`; script tính kappa là `scripts/kappa_check.py`.
 
 ## 7. Quy trình
 
