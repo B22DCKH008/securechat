@@ -31,6 +31,8 @@ export interface ApiMessage {
   protocolMeta?: Record<string, unknown>;
   clientCreatedAt?: string;
   createdAt: string;
+  /** Vắng mặt = tin thường. 'system' = sự kiện thành viên của nhóm, ciphertext rỗng, không giải mã. */
+  kind?: 'message' | 'system';
 }
 
 export interface ApiReceipt {

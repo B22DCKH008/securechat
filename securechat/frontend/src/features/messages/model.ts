@@ -21,6 +21,7 @@ export function fromWsEvent(ev: MessageEvent): ApiMessage {
     ciphertext: ev.ciphertext,
     protocolMeta: ev.protocolMeta,
     createdAt: ev.acceptedAt,
+    ...(ev.kind ? { kind: ev.kind } : {}),
   };
 }
 

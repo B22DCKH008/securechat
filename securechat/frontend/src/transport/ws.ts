@@ -310,7 +310,14 @@ export class WsClient extends Emitter<Events> {
 
   /** Kiểm giới hạn trước khi gửi. Ném WsSendError('too_large' | 'meta_too_large'). */
   static validate(payload: SendPayload): void {
-    if (base64DecodedLength(payload.ciphertext) > MAX_CIPHERTEXT_BYTES)
+    // 1:1 có `ciphertext`; nhóm có `ciphertexts` (mỗi thành viên một bản). Giới hạn tính trên tổng.
+    // Chưa tính `protocolMeta` của từng bản vì giao diện chưa gửi tin nhóm.
+    const copies = [
+      ...(payload.ciphertext !== undefined ? [payload.ciphertext] : []),
+      ...(payload.ciphertexts ?? []).map((c) => c.ciphertext),
+    ];
+    if (copies.length === 0) throw new WsSendError('invalid', 'thiếu ciphertext');
+    if (copies.reduce((n, c) => n + base64DecodedLength(c), 0) > MAX_CIPHERTEXT_BYTES)
       throw new WsSendError('too_large', 'tin nhắn quá lớn (tối đa 64 KiB sau khi mã hóa)');
     if (utf8Length(JSON.stringify(payload.protocolMeta ?? {})) > MAX_PROTOCOL_META_BYTES)
       throw new WsSendError('meta_too_large', 'protocolMeta vượt 4096 byte');

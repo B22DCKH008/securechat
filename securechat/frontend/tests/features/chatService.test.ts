@@ -173,6 +173,43 @@ describe('nhận', () => {
     expect((await storage.getCursor(CONV)).seq).toBe(2);
   });
 
+  it('tin hệ thống của nhóm (kind=system): không giải mã, không ack, không lưu, vẫn tiến cursor', async () => {
+    const { ws, storage } = await started();
+    ws.fire('message', wsMessage(1, { kind: 'system', ciphertext: '' }));
+    ws.fire('message', wsMessage(2));
+    await settle();
+    expect((await storage.listMessages(CONV)).map((m) => m.seq)).toEqual([2]);
+    expect(ws.acks).toEqual([{ id: 'm2', state: 'delivered' }]);
+    expect((await storage.getCursor(CONV)).seq).toBe(2);
+  });
+
+  it('tin hệ thống đến qua sync cũng bị bỏ qua nhưng cursor đi tiếp', async () => {
+    const { ws, api, storage } = await started();
+    api.syncPages.push({
+      conversations: [
+        {
+          conversationId: CONV,
+          messages: [apiMsg(1, { kind: 'system', ciphertext: '' }), apiMsg(2)],
+          nextCursor: 2,
+          hasMore: false,
+        },
+      ],
+    });
+    ws.fire('resync');
+    await settle();
+    expect((await storage.listMessages(CONV)).map((m) => m.seq)).toEqual([2]);
+    expect((await storage.getCursor(CONV)).seq).toBe(2);
+  });
+
+  it('danh sách hội thoại từ server: bỏ nhóm, chỉ giữ chat 1:1', async () => {
+    const { svc, api, storage } = await started();
+    const [direct] = await api.listConversations();
+    api.listConversations.mockResolvedValueOnce([direct!, { ...direct!, id: 'g1', kind: 'group' }]);
+    const list = await svc.refreshConversations();
+    expect(list.map((c) => c.id)).toEqual([direct!.id]);
+    expect((await storage.listConversations()).map((c) => c.id)).toEqual([direct!.id]);
+  });
+
   it('base64 hỏng không làm sập', async () => {
     const { ws, storage } = await started();
     ws.fire('message', wsMessage(1, { ciphertext: '***' }));

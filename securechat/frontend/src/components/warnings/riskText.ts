@@ -50,7 +50,11 @@ export function notesForOutgoing(r: RiskAssessment): RiskNote[] {
     notes.push({ kind: 'warning', text: `Nội dung ${LABEL_VI[r.message.label]}.` });
   }
   if (r.urls.some((u) => u.status === 'ok' && u.label === 'malicious')) {
-    notes.push({ kind: 'danger', text: 'Tin chứa liên kết bị đánh giá là độc hại.' });
+    // Model URL chưa đạt ngưỡng chất lượng (meetsBar=false), nên không khẳng định "độc hại".
+    notes.push({
+      kind: 'danger',
+      text: 'Tin chứa liên kết có dấu hiệu đáng ngờ — hãy kiểm tra lại trước khi gửi.',
+    });
   }
   if (notes.length === 0 && r.level === 'unknown') {
     notes.push({ kind: 'info', text: 'AI chưa kiểm tra được tin này nên không có đánh giá.' });

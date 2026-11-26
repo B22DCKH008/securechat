@@ -19,6 +19,9 @@ import type { ApiClient } from '../../transport/rest';
 import type { WsClient } from '../../transport/ws';
 import { WsClient as WsClientStatic } from '../../transport/ws';
 import type { AcceptedPayload, SendPayload } from '../../transport/protocol';
+
+/** Tin 1:1 luôn có `ciphertext`; `SendPayload` để tùy chọn vì tin nhóm dùng `ciphertexts`. */
+type DirectSendPayload = SendPayload & { ciphertext: string };
 import type { ApiMessage, ApiReceipt, Conversation } from '../../transport/types';
 import type { ChatStorage, LocalMessage } from '../../storage';
 import { assessRisk, type RiskAnalyzer } from '../../ai';
@@ -126,7 +129,8 @@ export class ChatService extends Emitter<Events> {
   }
 
   async refreshConversations(): Promise<Conversation[]> {
-    const list = await this.d.api.listConversations();
+    // MVP chỉ có chat 1:1; nhóm (kind='group') do backend hỗ trợ nhưng giao diện chưa dùng.
+    const list = (await this.d.api.listConversations()).filter((c) => c.kind === 'direct');
     for (const c of list) {
       this.convCache.set(c.id, c);
       await this.d.storage.putConversation(c);
@@ -231,7 +235,7 @@ export class ChatService extends Emitter<Events> {
     }
   }
 
-  private payloadOf(m: LocalMessage): SendPayload {
+  private payloadOf(m: LocalMessage): DirectSendPayload {
     return {
       clientMessageId: m.clientMessageId,
       conversationId: m.conversationId,
@@ -356,6 +360,8 @@ export class ChatService extends Emitter<Events> {
   }
 
   private async processOne(m: ApiMessage): Promise<void> {
+    // Sự kiện thành viên của nhóm: ciphertext rỗng, không giải mã, không gửi ack. `ingest` vẫn tiến cursor.
+    if (m.kind === 'system') return;
     if (await this.d.storage.findByMessageId(m.messageId)) return; // trùng
 
     if (m.senderId === this.d.me.userId) {

@@ -38,6 +38,26 @@ describe('notesForOutgoing (tin sắp gửi)', () => {
     const n = notesForOutgoing(base({ level: 'warn', sensitive: [{ kind: 'card_number' }] }));
     expect(n.map((x) => x.text).join(' ')).not.toMatch(/\d{6,}/);
   });
+  it('URL bị model đánh dấu: nói "đáng ngờ", không khẳng định "độc hại" (model chưa đạt ngưỡng)', () => {
+    const n = notesForOutgoing(
+      base({
+        level: 'warn',
+        urls: [
+          {
+            url: 'http://x.test',
+            status: 'ok',
+            label: 'malicious',
+            confidence: 0.9,
+            modelVersion: 'v',
+            latencyMs: 1,
+          },
+        ],
+      }),
+    );
+    expect(n).toHaveLength(1);
+    expect(n[0]!.text).toMatch(/đáng ngờ/);
+    expect(n[0]!.text).not.toMatch(/độc hại/);
+  });
   it('AI timeout → chỉ ghi chú info (không chặn gửi)', () => {
     const n = notesForOutgoing(base({ level: 'unknown', message: { status: 'timeout' } }));
     expect(n.every((x) => x.kind === 'info')).toBe(true);

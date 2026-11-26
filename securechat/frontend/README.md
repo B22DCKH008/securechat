@@ -22,13 +22,13 @@ Yêu cầu Node từ 22.12 trở lên. Model demo đã được commit trong `pu
 
 Backend chạy bằng docker-compose ở thư mục gốc của kho (xem `backend/`). Địa chỉ backend đổi bằng biến `VITE_BACKEND`, ví dụ `VITE_BACKEND=http://host:port npm run dev`. Để thử, đăng ký hai tài khoản (mật khẩu tối thiểu 12 ký tự) ở hai trình duyệt hoặc hai profile khác nhau. Backend chưa có API tìm người dùng nên cần nhập UUID của nhau ở màn hình danh sách hội thoại (màn hình có hiển thị sẵn "ID của bạn").
 
-| Lệnh | Chức năng |
-|---|---|
-| `npm test` | Chạy 160 test; có thêm 8 test trên model thật, tự bỏ qua khi chưa có `ai-real` |
-| `npm run typecheck` | `tsc --noEmit` ở chế độ strict |
-| `npm run build` | Kiểm tra kiểu và build bản production vào `dist/` |
-| `npm run models:sync [-- --demo]` | Sao chép model đã huấn luyện từ `ml/` sang `public/models` cùng fixtures đối chiếu |
-| `npm run format`, `npm run format:check` | Prettier (cấu hình trong `.prettierrc`, dùng nháy đơn) |
+| Lệnh                                     | Chức năng                                                                          |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `npm test`                               | Chạy 160 test; có thêm 8 test trên model thật, tự bỏ qua khi chưa có `ai-real`     |
+| `npm run typecheck`                      | `tsc --noEmit` ở chế độ strict                                                     |
+| `npm run build`                          | Kiểm tra kiểu và build bản production vào `dist/`                                  |
+| `npm run models:sync [-- --demo]`        | Sao chép model đã huấn luyện từ `ml/` sang `public/models` cùng fixtures đối chiếu |
+| `npm run format`, `npm run format:check` | Prettier (cấu hình trong `.prettierrc`, dùng nháy đơn)                             |
 
 Biến môi trường (tệp `.env`, không bắt buộc): `VITE_API_URL`, `VITE_WS_URL` (mặc định cùng origin), `VITE_E2EE=mock|signal`, `VITE_AI_TIMEOUT_MS`.
 
@@ -72,7 +72,7 @@ Luồng bắt đầu từ `Composer` và gọi `ChatService.sendText`:
 
 ### 3.2. Nhận tin
 
-Tin từ WebSocket (`message`) vào hàng đợi tuần tự theo hội thoại và được khử trùng theo `messageId`. Tin chỉ được nhận khi `seq` bằng `cursor + 1`; nếu `seq` lớn hơn thì ứng dụng gọi `POST /v1/sync`. Sau đó tin được giải mã, lưu, gửi ack `delivered`, rồi AI phân tích ở chế độ nền và cập nhật cảnh báo. Mỗi lần kết nối (hoặc kết nối lại) đều chạy đồng bộ, sau đó gửi lại các tin còn chờ.
+Tin từ WebSocket (`message`) vào hàng đợi tuần tự theo hội thoại và được khử trùng theo `messageId`. Tin chỉ được nhận khi `seq` bằng `cursor + 1`; nếu `seq` lớn hơn thì ứng dụng gọi `POST /v1/sync`. Sau đó tin được giải mã, lưu, gửi ack `delivered`, rồi AI phân tích ở chế độ nền và cập nhật cảnh báo. Mỗi lần kết nối (hoặc kết nối lại) đều chạy đồng bộ, sau đó gửi lại các tin còn chờ. Tin hệ thống của nhóm (`kind=system`, ciphertext rỗng) không được giải mã, lưu hay ack, nhưng vẫn tính vào `seq` để cursor liền mạch.
 
 ## 4. Các ràng buộc cần giữ
 
@@ -127,11 +127,11 @@ Giá trị p95 kém nhất trên thiết bị yếu được dùng để chốt 
 
 1. Mã hóa đầu cuối đang là bản mô phỏng. `MockCryptoProvider` chỉ bọc UTF-8 và đánh dấu `scheme: mock-v0`; giao diện hiển thị biểu ngữ cảnh báo màu đỏ. `SignalCryptoProvider` chưa được cài đặt và ném lỗi rõ ràng khi gọi. Cần thực hiện thử nghiệm khả thi để chọn thư viện Signal chạy được trong trình duyệt (ứng viên là `@privacyresearch/libsignal-protocol-typescript`, giấy phép GPL-3.0, chưa xác minh việc bảo trì và kiểm toán); xem ghi chú đầu tệp `crypto/signalProvider.ts`. Dự án không tự cài đặt thuật toán mật mã.
 2. Model AI là model demo, số đo không có ý nghĩa và không được dùng trong báo cáo. Dữ liệu tin nhắn tiếng Việt thật chưa được thu thập.
-3. Chưa chạy thử với backend thật. Hợp đồng giao tiếp được đối chiếu với `openapi.yaml` và mã Go; transport được kiểm thử bằng WebSocket và `fetch` giả lập. Cần chạy thử bằng hai trình duyệt với docker-compose.
+3. Chưa chạy thử với backend thật. Hợp đồng giao tiếp được đối chiếu với `openapi.yaml` và mã Go, và đã đối chiếu lại với `openapi.yaml` sau khi merge BE2; transport được kiểm thử bằng WebSocket và `fetch` giả lập. Cần chạy thử bằng hai trình duyệt với docker-compose.
 4. Nội dung tin nhắn dạng rõ được lưu trong IndexedDB mà không mã hóa, nên người có quyền truy cập máy hoặc khai thác được XSS đều đọc được. Mã hóa dữ liệu lưu cục bộ cần khóa sinh từ mật khẩu và chưa được thực hiện. Đăng xuất sẽ xóa dữ liệu cục bộ.
 5. Refresh token nằm ở `sessionStorage` nên mất khi đóng tab. Nếu cần ghi nhớ đăng nhập, đổi `WebStorageTokenStore` sang `localStorage`, với đánh đổi là XSS có thể đọc được token.
 6. Ứng dụng giả định `deviceId` của người nhận là 1 (mỗi người một thiết bị); `deviceId` của người gửi được đọc từ `protocolMeta.deviceId` nếu có.
 7. Tin do chính người dùng gửi từ thiết bị khác không đọc lại được, vì mỗi tin chỉ có một ciphertext cho người nhận; ứng dụng hiển thị nội dung thay thế.
 8. Lịch sử cũ (`GET .../messages?before_seq`) chưa được dùng, vì Signal không giải mã lại được tin đã qua ratchet; ứng dụng chỉ đồng bộ tin mới.
-9. Chưa có chức năng tìm người dùng (backend chưa có API). Ứng dụng chỉ hỗ trợ chat 1:1, tiếng Việt và ba nhãn (nhãn phishing được gộp vào scam).
+9. Chưa có chức năng tìm người dùng (backend chưa có API). Ứng dụng chỉ hỗ trợ chat 1:1, tiếng Việt và ba nhãn (nhãn phishing được gộp vào scam). Backend đã có chat nhóm (mã hóa riêng một bản cho mỗi thành viên) nhưng giao diện chưa dùng: danh sách hội thoại lấy từ server chỉ giữ chat 1:1, trường `left` của `POST /v1/sync` và mã lỗi `membership_changed` chưa được xử lý.
 10. `listMessages` đọc toàn bộ hội thoại vào RAM. Cách này đủ cho đồ án; hội thoại rất lớn cần phân trang theo chỉ mục.

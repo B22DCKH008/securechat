@@ -95,6 +95,28 @@ describe('WsClient', () => {
     expect(FakeWebSocket.last.sent).toHaveLength(0);
   });
 
+  it('tin nhóm: giới hạn tính trên tổng các bản ciphertexts', () => {
+    const group = (...sizes: number[]): SendPayload => {
+      const p = payload();
+      delete p.ciphertext;
+      p.ciphertexts = sizes.map((n, i) => ({
+        recipientId: `u${i}`,
+        ciphertext: btoa('a'.repeat(n)),
+      }));
+      return p;
+    };
+    expect(() => WsClient.validate(group(32 * 1024, 32 * 1024))).not.toThrow();
+    expect(() => WsClient.validate(group(40 * 1024, 30 * 1024))).toThrow(
+      expect.objectContaining({ code: 'too_large' }),
+    );
+  });
+
+  it('thiếu cả ciphertext lẫn ciphertexts thì bị từ chối ngay', () => {
+    const p = payload();
+    delete p.ciphertext;
+    expect(() => WsClient.validate(p)).toThrow(expect.objectContaining({ code: 'invalid' }));
+  });
+
   it('đúng 64 KiB thì được phép', () => {
     expect(() =>
       WsClient.validate(payload({ ciphertext: btoa('a'.repeat(64 * 1024)) })),
