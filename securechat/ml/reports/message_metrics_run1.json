@@ -1,0 +1,438 @@
+{
+  "modelVersion": "msg-29bd2d-50f635",
+  "task": "message risky-vs-benign",
+  "threshold": {
+    "threshold": 0.3431826593757284,
+    "reached": true,
+    "val_precision": 0.902027027027027,
+    "val_recall": 0.985239852398524
+  },
+  "vocab_size": 33501,
+  "fit_seconds": 1.215,
+  "evaluated_on": "test",
+  "quality_bar": {
+    "precision>=": 0.9,
+    "recall>=": 0.8,
+    "met_on_evaluated_set": false
+  },
+  "model": {
+    "val": {
+      "risky_vs_benign": {
+        "n": 386,
+        "positives": 271,
+        "threshold": 0.3431826593757284,
+        "precision": 0.902027027027027,
+        "recall": 0.985239852398524,
+        "f1": 0.9417989417989417,
+        "fpr": 0.25217391304347825,
+        "pr_auc": 0.9943240502285711,
+        "confusion": {
+          "tp": 267,
+          "fp": 29,
+          "fn": 4,
+          "tn": 86
+        }
+      },
+      "ci95": {
+        "precision": [
+          0.8676669659894488,
+          0.9358816843472613
+        ],
+        "recall": [
+          0.9692243968106037,
+          1.0
+        ],
+        "f1": [
+          0.9214042002470733,
+          0.9622053613604157
+        ]
+      },
+      "multiclass": {
+        "labels": [
+          "benign",
+          "spam",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            86,
+            12,
+            17
+          ],
+          [
+            4,
+            158,
+            3
+          ],
+          [
+            0,
+            1,
+            105
+          ]
+        ],
+        "per_class": {
+          "benign": {
+            "precision": 0.9555555555555556,
+            "recall": 0.7478260869565218,
+            "f1": 0.8390243902439025,
+            "support": 115
+          },
+          "spam": {
+            "precision": 0.9239766081871345,
+            "recall": 0.9575757575757575,
+            "f1": 0.9404761904761904,
+            "support": 165
+          },
+          "scam": {
+            "precision": 0.84,
+            "recall": 0.9905660377358491,
+            "f1": 0.9090909090909091,
+            "support": 106
+          }
+        }
+      }
+    },
+    "test": {
+      "risky_vs_benign": {
+        "n": 300,
+        "positives": 200,
+        "threshold": 0.3431826593757284,
+        "precision": 0.7817460317460317,
+        "recall": 0.985,
+        "f1": 0.8716814159292036,
+        "fpr": 0.55,
+        "pr_auc": 0.9684463017364637,
+        "confusion": {
+          "tp": 197,
+          "fp": 55,
+          "fn": 3,
+          "tn": 45
+        }
+      },
+      "ci95": {
+        "precision": [
+          0.7253330339769496,
+          0.833032319391635
+        ],
+        "recall": [
+          0.9658978397839784,
+          1.0
+        ],
+        "f1": [
+          0.8377065945022076,
+          0.9038148667601683
+        ]
+      },
+      "multiclass": {
+        "labels": [
+          "benign",
+          "spam",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            45,
+            12,
+            43
+          ],
+          [
+            3,
+            69,
+            28
+          ],
+          [
+            0,
+            7,
+            93
+          ]
+        ],
+        "per_class": {
+          "benign": {
+            "precision": 0.9375,
+            "recall": 0.45,
+            "f1": 0.6081081081081081,
+            "support": 100
+          },
+          "spam": {
+            "precision": 0.7840909090909091,
+            "recall": 0.69,
+            "f1": 0.7340425531914891,
+            "support": 100
+          },
+          "scam": {
+            "precision": 0.5670731707317073,
+            "recall": 0.93,
+            "f1": 0.7045454545454545,
+            "support": 100
+          }
+        }
+      }
+    },
+    "test_hard": {
+      "risky_vs_benign": {
+        "n": 167,
+        "positives": 108,
+        "threshold": 0.3431826593757284,
+        "precision": 0.7482517482517482,
+        "recall": 0.9907407407407407,
+        "f1": 0.852589641434263,
+        "fpr": 0.6101694915254238,
+        "pr_auc": 0.9505719998620612,
+        "confusion": {
+          "tp": 107,
+          "fp": 36,
+          "fn": 1,
+          "tn": 23
+        }
+      },
+      "ci95": {
+        "precision": [
+          0.6765756302521009,
+          0.8111888111888111
+        ],
+        "recall": [
+          0.97,
+          1.0
+        ],
+        "f1": [
+          0.8034188034188035,
+          0.8923076923076924
+        ]
+      },
+      "multiclass": {
+        "labels": [
+          "benign",
+          "spam",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            23,
+            10,
+            26
+          ],
+          [
+            1,
+            37,
+            11
+          ],
+          [
+            0,
+            5,
+            54
+          ]
+        ],
+        "per_class": {
+          "benign": {
+            "precision": 0.9583333333333334,
+            "recall": 0.3898305084745763,
+            "f1": 0.5542168674698795,
+            "support": 59
+          },
+          "spam": {
+            "precision": 0.7115384615384616,
+            "recall": 0.7551020408163265,
+            "f1": 0.7326732673267328,
+            "support": 49
+          },
+          "scam": {
+            "precision": 0.5934065934065934,
+            "recall": 0.9152542372881356,
+            "f1": 0.7200000000000001,
+            "support": 59
+          }
+        }
+      }
+    }
+  },
+  "rules_baseline_nac0": {
+    "val": {
+      "risky_vs_benign": {
+        "n": 386,
+        "positives": 271,
+        "threshold": 0.5,
+        "precision": 0.8579881656804734,
+        "recall": 0.5350553505535055,
+        "f1": 0.6590909090909091,
+        "fpr": 0.20869565217391303,
+        "pr_auc": 0.7854960292252462,
+        "confusion": {
+          "tp": 145,
+          "fp": 24,
+          "fn": 126,
+          "tn": 91
+        }
+      },
+      "multiclass": {
+        "labels": [
+          "benign",
+          "spam",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            91,
+            16,
+            8
+          ],
+          [
+            29,
+            136,
+            0
+          ],
+          [
+            97,
+            4,
+            5
+          ]
+        ],
+        "per_class": {
+          "benign": {
+            "precision": 0.41935483870967744,
+            "recall": 0.7913043478260869,
+            "f1": 0.5481927710843374,
+            "support": 115
+          },
+          "spam": {
+            "precision": 0.8717948717948718,
+            "recall": 0.8242424242424242,
+            "f1": 0.8473520249221185,
+            "support": 165
+          },
+          "scam": {
+            "precision": 0.38461538461538464,
+            "recall": 0.04716981132075472,
+            "f1": 0.08403361344537816,
+            "support": 106
+          }
+        }
+      }
+    },
+    "test": {
+      "risky_vs_benign": {
+        "n": 300,
+        "positives": 200,
+        "threshold": 0.5,
+        "precision": 1.0,
+        "recall": 0.12,
+        "f1": 0.21428571428571425,
+        "fpr": 0.0,
+        "pr_auc": 0.7066666666666667,
+        "confusion": {
+          "tp": 24,
+          "fp": 0,
+          "fn": 176,
+          "tn": 100
+        }
+      },
+      "multiclass": {
+        "labels": [
+          "benign",
+          "spam",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            100,
+            0,
+            0
+          ],
+          [
+            91,
+            8,
+            1
+          ],
+          [
+            85,
+            0,
+            15
+          ]
+        ],
+        "per_class": {
+          "benign": {
+            "precision": 0.36231884057971014,
+            "recall": 1.0,
+            "f1": 0.5319148936170213,
+            "support": 100
+          },
+          "spam": {
+            "precision": 1.0,
+            "recall": 0.08,
+            "f1": 0.14814814814814814,
+            "support": 100
+          },
+          "scam": {
+            "precision": 0.9375,
+            "recall": 0.15,
+            "f1": 0.25862068965517243,
+            "support": 100
+          }
+        }
+      }
+    },
+    "test_hard": {
+      "risky_vs_benign": {
+        "n": 167,
+        "positives": 108,
+        "threshold": 0.5,
+        "precision": 1.0,
+        "recall": 0.08333333333333333,
+        "f1": 0.15384615384615385,
+        "fpr": 0.0,
+        "pr_auc": 0.6761477045908184,
+        "confusion": {
+          "tp": 9,
+          "fp": 0,
+          "fn": 99,
+          "tn": 59
+        }
+      },
+      "multiclass": {
+        "labels": [
+          "benign",
+          "spam",
+          "scam"
+        ],
+        "confusion_matrix": [
+          [
+            59,
+            0,
+            0
+          ],
+          [
+            44,
+            5,
+            0
+          ],
+          [
+            55,
+            0,
+            4
+          ]
+        ],
+        "per_class": {
+          "benign": {
+            "precision": 0.37341772151898733,
+            "recall": 1.0,
+            "f1": 0.543778801843318,
+            "support": 59
+          },
+          "spam": {
+            "precision": 1.0,
+            "recall": 0.10204081632653061,
+            "f1": 0.1851851851851852,
+            "support": 49
+          },
+          "scam": {
+            "precision": 1.0,
+            "recall": 0.06779661016949153,
+            "f1": 0.12698412698412698,
+            "support": 59
+          }
+        }
+      }
+    }
+  },
+  "warnings": [],
+  "note": "Nếu validation/test chứa dữ liệu tổng hợp thì số đo KHÔNG phản ánh chat thật."
+}
