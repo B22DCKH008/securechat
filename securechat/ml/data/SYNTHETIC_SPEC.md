@@ -52,6 +52,8 @@ Số lượng có thể điều chỉnh theo thời gian thực hiện.
 | spam | 400-600 | 20-30 | Tối thiểu 15 |
 | benign | 1000-1500 | 40-60 | Tối thiểu 15 |
 
+Thứ tự ưu tiên khi thời gian có hạn: `benign` kiểu chat đời thường trước, rồi `scam`, rồi `spam`. Lần huấn luyện đầu (27/11/2026) chỉ có 100 tin chat tổng hợp mỗi nhãn và cho thấy lỗi chủ yếu là tin chat bình thường bị báo nhầm là rủi ro (`model_card.md`, mục 2). Mỗi mã kịch bản (`group`) dùng cho đúng một nhãn.
+
 Mỗi kịch bản cần có các biến thể: có dấu, không dấu, teencode và viết tắt (`k`, `ko`, `dc`, `vcb`), sai chính tả, viết hoa toàn bộ, có hoặc không có liên kết (`https://...`, `bit.ly`), có hoặc không có số điện thoại và số tài khoản giả, độ dài ngắn và dài, có emoji. Tối thiểu 25-30% số tin ở dạng không dấu hoặc teencode, vì tin nhắn thật thường như vậy.
 
 ## 5. Lời nhắc mẫu
@@ -76,8 +78,8 @@ Với nhãn `benign` ở mức khó, bổ sung vào lời nhắc: "tin hợp l�
 
 ## 6. Quy trình kiểm soát chất lượng
 
-1. Gộp các tệp do AI trả về vào `data/raw/messages_train_pool.csv`, giữ dòng tiêu đề một lần.
+1. Lưu mỗi lô do AI trả về thành một tệp riêng trong `data/raw/` (ví dụ `messages_ai_synthetic_v1_benign_01.csv`), giữ dòng tiêu đề. Không sửa tay `messages_train_pool.csv`; tệp này được tạo lại bằng `python scripts/build_message_pool.py messages_vi_sms.csv <các tệp tổng hợp>`. Script từ chối tệp test gán tay.
 2. Chạy `make validate` (hoặc `validate-messages --file ...`). Lệnh kiểm tra nhãn, `source`, văn bản rỗng, tin trùng sau chuẩn hóa, tin quá dài, nhãn có dưới 30 mẫu và tỷ lệ tin có từ tiếng Việt, đồng thời in số lượng theo nhãn và nguồn. Mọi mục `errors` cần được sửa. Tỷ lệ tin không dấu hoặc teencode chưa được đo tự động và cần kiểm tra thủ công khi đọc mẫu.
 3. Đọc ngẫu nhiên ít nhất 50 tin mỗi nhãn, loại các tin sai nhãn hoặc quá vô lý. Nếu hơn 30% số tin bắt đầu bằng cùng một cụm từ thì sinh lại với yêu cầu đa dạng hơn.
 4. Chạy `prepare-messages` và đọc `split_manifest.json`, kiểm tra `warnings`, số nhóm, `validation_source` và số dòng train bị loại do gần giống tập test.
-5. Sau khi huấn luyện, so điểm trên validation (tổng hợp) với điểm trên test gán tay. Nếu chênh lệch lớn thì mô hình đang học theo khuôn của dữ liệu tổng hợp, cần bổ sung dữ liệu đa dạng hơn hoặc dữ liệu thật.
+5. Sau khi huấn luyện, so điểm trên validation (in riêng theo nguồn: `val_real` là SMS thật, `val_synthetic` là chat tổng hợp) với điểm trên test gán tay. Nếu chênh lệch lớn thì mô hình đang học theo khuôn của dữ liệu tổng hợp, cần bổ sung dữ liệu đa dạng hơn hoặc dữ liệu thật.

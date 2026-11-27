@@ -126,3 +126,55 @@ def test_read_messages_accepts_excel_bom(tmp_path):
     p = tmp_path / "m.csv"
     p.write_bytes("text,label\nxin chào,benign\n".encode("utf-8-sig"))  # Excel/Windows hay thêm BOM
     assert list(read_messages(p).columns[:2]) == ["text", "label"]
+
+
+def _chat_synthetic(n_groups: int = 12, per_group: int = 5, seed: int = 3) -> pd.DataFrame:
+    """Tin tổng hợp nhiều nhóm, từ vựng khác hẳn nhau (để không bị gom thành một nhóm vì gần giống)."""
+    import random
+
+    r = random.Random(seed)
+    labs = ["benign", "spam", "scam"]
+    rows = []
+    for g in range(n_groups):
+        for _ in range(per_group):
+            text = " ".join("".join(r.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(r.randint(4, 9))) for _ in range(6))
+            rows.append((text, labs[g % 3], "synthetic", f"scn{g}"))
+    return pd.DataFrame(rows, columns=["text", "label", "source", "group"]).assign(hard=0, lang="vi")
+
+
+_CFG_VS = {"dedupe": MSG_CFG["dedupe"], "split": {**MSG_CFG["split"], "val_synthetic_fraction": 0.25}}
+
+
+def test_validation_can_include_synthetic_groups_without_leak():
+    pool = pd.concat([_msgs(60, 0), _chat_synthetic()], ignore_index=True)
+    sets, man = build_message_splits(pool, None, _CFG_VS, 0)
+    assert man["validation_source"] == "real+synthetic"
+    assert set(sets["val"]["source"]) == {"real", "synthetic"}
+    assert man["val_synthetic_rows"] == int((sets["val"]["source"] == "synthetic").sum()) > 0
+    assert set(sets["val"]["group_id"]).isdisjoint(set(sets["train"]["group_id"]))  # mỗi nhóm nằm trọn trong một tập
+    assert "synthetic" in set(sets["train"]["source"])  # train vẫn còn tin tổng hợp
+    assert any("lạc quan" in w for w in man["warnings"])
+
+
+def test_synthetic_in_validation_never_reaches_test_and_test_stays_protected():
+    pool = pd.concat([_msgs(60, 0), _chat_synthetic()], ignore_index=True)
+    leak = pool[pool["source"] == "synthetic"]["text"].iloc[0]  # một tin tổng hợp trùng nguyên văn với tin test
+    hand = pd.DataFrame({"text": [leak, "Hôm nay trời đẹp quá"], "label": ["scam", "benign"], "hard": [0, 1], "source": "handlabeled", "group": "", "lang": "vi"})
+    sets, man = build_message_splits(pool, hand, _CFG_VS, 0)
+    assert set(sets["test"]["source"]) == {"handlabeled"}
+    assert leak.lower() not in set(sets["train"]["text"].str.lower()) | set(sets["val"]["text"].str.lower())
+    assert man["train_rows_dropped_near_test"] >= 1
+
+
+def test_val_synthetic_fraction_needs_at_least_two_groups_else_warns():
+    one_group = _chat_synthetic(n_groups=1, per_group=6)
+    sets, man = build_message_splits(pd.concat([_msgs(60, 0), one_group], ignore_index=True), None, _CFG_VS, 0)
+    assert man["validation_source"] == "real"
+    assert set(sets["val"]["source"]) == {"real"}
+    assert any("dưới 2 nhóm" in w for w in man["warnings"])
+
+
+def test_val_synthetic_fraction_out_of_range_is_rejected():
+    bad = {"dedupe": MSG_CFG["dedupe"], "split": {**MSG_CFG["split"], "val_synthetic_fraction": 1.5}}
+    with pytest.raises(ValueError, match="val_synthetic_fraction"):
+        build_message_splits(pd.concat([_msgs(60, 0), _chat_synthetic()], ignore_index=True), None, bad, 0)

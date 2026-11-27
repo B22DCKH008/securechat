@@ -23,11 +23,16 @@ dedupe:
 
 split:
   val_fraction: 0.15
-  val_min_real: 150        # nếu có >= số tin "real" này thì validation chỉ lấy từ tin real
+  val_min_real: 150        # nếu có >= số tin "real" này thì validation lấy từ tin real
+  val_synthetic_fraction: 0.20   # 0 = validation chỉ gồm tin real (lần 1, toàn SMS). > 0: thêm ngần ấy NHÓM tin tổng hợp vào validation
+                                 # (lần 2: để validation có cả tin chat; phần này lạc quan hơn chat thật, chỉ dùng để chọn ngưỡng)
 
 threshold:
-  target_precision: 0.90   # chọn trên validation: recall lớn nhất với precision >= giá trị này (risky vs benign)
-  target_recall: 0.80      # ngưỡng chất lượng tối thiểu để báo cáo "đạt/không đạt" (đặt TRƯỚC khi xem kết quả)
+  target_precision: 0.95   # CHỌN ngưỡng trên validation: recall lớn nhất với precision >= giá trị này (risky vs benign).
+                           # Lần 1 dùng 0.90 và validation đạt đúng 0.902 (không có biên an toàn) => test chỉ được 0.782.
+                           # Lần 2 đặt 0.95 vì recall còn dư xa (0.985 so với 0.80). Quyết định SAU khi thấy kết quả lần 1.
+  quality_precision: 0.90  # tiêu chí ĐẠT trên test gán tay, đặt TRƯỚC khi xem kết quả, KHÔNG đổi (khác với target_precision ở trên)
+  target_recall: 0.80      # tiêu chí ĐẠT: recall tối thiểu trên test gán tay (đặt TRƯỚC khi xem kết quả, không đổi)
 
 bootstrap:
   n: 500

@@ -45,7 +45,7 @@ Nguồn tin nhắn thật hiện dùng là bộ SMS tiếng Việt ghi tại `da
 ```powershell
 git clone https://github.com/trannguyenthaituan251209/vietnamese_sms_dataset data/raw/vietnamese_sms_dataset
 python scripts/import_vi_sms.py --src data/raw/vietnamese_sms_dataset/full_dataset.csv --out data/raw/messages_vi_sms.csv
-python scripts/build_message_pool.py messages_vi_sms.csv    # thêm các tệp khác (tin chat tổng hợp) vào cuối danh sách
+python scripts/build_message_pool.py messages_vi_sms.csv    # thêm các tệp khác (tin chat tổng hợp, mỗi lô một tệp) vào cuối danh sách
 ```
 
 Script bỏ các tin không phải tiếng Việt (mã xác thực bằng tiếng Anh), loại tin trùng, gộp khoảng trắng, che các thông tin cá nhân còn sót (email, tên viết hoa sau "Quy khach", mã tài khoản dịch vụ có chứa tên), gán nhãn theo luật rồi thay các token ẩn danh bằng giá trị giả theo ngữ cảnh (số điện thoại sau "thuê bao", đầu số sau "gửi", số tài khoản sau "STK", giờ trong ngày hay khoảng thời gian, cước gọi trong ngoặc, năm trong số hiệu văn bản...). Giá trị sinh cố định theo `message_id` nên chạy lại cho cùng kết quả. Luật gán nhãn, theo thứ tự ưu tiên:
@@ -82,7 +82,8 @@ Nguồn và giấy phép của từng bộ dữ liệu được ghi tại `data/
 |---|---|---|---|
 | 0 | `validate-messages --file data/raw/messages_train_pool.csv` | CSV tin nhắn | Báo cáo lỗi, thoát với mã 1 nếu có lỗi |
 | 1 | `prepare-messages` | `data/raw/messages_train_pool.csv`, `messages_handlabeled.csv` | `data/splits/messages/{train,val,test,test_hard}.csv` và `split_manifest.json` |
-| 2 | `train-message` | Các tập đã chia | `models/artifacts/message/`, `reports/message_metrics.json` |
+| 2 | `train-message` | Các tập đã chia | `models/artifacts/message/`, `reports/message_metrics.json` (có thêm `test_excl_sender_context`: test bỏ các tin có `note` "cần ngữ cảnh người gửi") |
+| 2b | `eval-message` | Model đã lưu và các tập test | `reports/message_eval_<modelVersion>.json`: đo lại model đã lưu tại ngưỡng đã lưu, không train lại. Phải chạy trước khi train lần mới vì `train-message` ghi đè model |
 | 3 | `sweep-message` | Các tập đã chia | `reports/optimization_message.json` (AI11: kích thước, F1 và độ trễ theo `max_features`) |
 | 4 | `prepare-urls` | PhiUSIIL và PhishVN | `data/splits/urls/{train,val_in,test_in,val_cross,test_cross}.csv` và `split_manifest.json` |
 | 5 | `train-url` | Các tập đã chia | `models/artifacts/url/models.joblib`, `reports/url_metrics.json` |
@@ -95,7 +96,8 @@ Các quy tắc sau được kiểm tra trong `tests/test_leakage.py`.
 
 - Các tin nhắn gần giống nhau (độ tương đồng cosine từ 0.85 trở lên) hoặc cùng `group` được gom thành một nhóm và không bị tách sang tập khác.
 - Tin trong tập train gần giống tin của tập test gán tay bị loại khỏi train.
-- Dữ liệu `synthetic` không được đưa vào test. Dữ liệu này chỉ vào validation khi thiếu tin `real`, và `split_manifest.json` ghi cảnh báo trong trường hợp đó.
+- Dữ liệu `synthetic` không được đưa vào test. Dữ liệu này chỉ vào validation khi thiếu tin `real`, hoặc khi `split.val_synthetic_fraction` lớn hơn 0; khi đó một phần các nhóm tổng hợp (chọn theo nhóm, không theo từng tin) được thêm vào validation bên cạnh tin `real`. Cả hai trường hợp đều có cảnh báo trong `split_manifest.json`.
+- `scripts/build_message_pool.py` từ chối tệp test gán tay (`files.handlabeled`) và mọi dòng có `source=handlabeled`.
 - URL được chia theo tên miền đăng ký (`registered_domain`). Mọi tên miền xuất hiện ở val hoặc test đều bị loại khỏi train. Tầng `bronze` không được đưa vào test chéo miền.
 - TF-IDF chỉ được `fit` trên tập train. Ngưỡng quyết định được chọn trên validation, còn test chỉ đo một lần tại ngưỡng đó.
 - Đặc trưng `is_https` không được dùng vì phản ánh cách thu thập dữ liệu. Đặc trưng `has_www` được loại qua `features.exclude`.
@@ -104,7 +106,8 @@ Các quy tắc sau được kiểm tra trong `tests/test_leakage.py`.
 
 Các tiêu chí được khai báo trong `configs/*.yaml` trước khi xem kết quả đo. Giá trị cuối cùng do nhóm thực hiện quyết định.
 
-- Tin nhắn: precision không thấp hơn 0.90 tại recall không thấp hơn 0.80 trên tập test gán tay.
+- Tin nhắn: precision không thấp hơn 0.90 tại recall không thấp hơn 0.80 trên tập test gán tay (`threshold.quality_precision` và `threshold.target_recall`). Khóa `threshold.target_precision` là một con số khác: mục tiêu precision dùng để chọn ngưỡng trên validation. Lần 1 đặt hai giá trị bằng nhau (0.90); từ lần 2, `target_precision` là 0.95 để có biên an toàn, còn tiêu chí đạt vẫn là 0.90. Khi validation có từ hai nguồn trở lên, `train-message` in thêm số đo validation theo từng nguồn (`val_real`, `val_synthetic`).
+- Tái lập lần 1 của model tin nhắn: `val_synthetic_fraction: 0`, `target_precision: 0.90`, train pool gồm `messages_vi_sms.csv` và `messages_ai_synthetic_v0.csv`. Kết quả lần 1 lưu ở `reports/message_metrics_run1.json`.
 - URL: recall không thấp hơn 0.90 tại FPR không quá 1% trên `test_cross` (PhishVN tầng gold và silver). Báo cáo kèm khoảng tin cậy 95% theo bootstrap, ma trận nhầm lẫn và PR-AUC. Nếu không đạt, kết quả vẫn được báo cáo đúng như đo được và trường `meets_bar...` nhận giá trị `false`.
 - Chọn model URL: chọn model đơn giản nhất (theo thứ tự khai báo trong `models:`) đạt tiêu chí trên validation, tức `val_cross`, hoặc `val_in` nếu `val_cross` chỉ có một lớp. Tập `test_cross` không tham gia việc chọn mà chỉ dùng để xác nhận. Nếu model do validation chọn không đạt trên test thì `selected_model` nhận giá trị `null` (frontend dùng LR và đặt `meetsBar=false`), còn `validation_selected_model` vẫn ghi model đã chọn trên validation.
 - Với PhishVN v3.1.0, tập `val_cross` theo tầng gold và silver chỉ có khoảng 24 mẫu phishing. Trong trường hợp này có thể nới riêng validation bằng `phishvn.val_tiers` (ví dụ thêm `bronze`). Tùy chọn này chỉ dùng cho việc chọn ngưỡng và chọn model; `test_cross` luôn chỉ gồm gold và silver. Lựa chọn này cần được nêu rõ trong báo cáo.
@@ -149,7 +152,7 @@ reports/            kết quả đo
 - Phần URL hợp lệ của PhishVN chủ yếu là tên miền `.gov.vn`. Tỷ lệ báo nhầm trên các liên kết thực tế trong tin nhắn có thể cao hơn số đo trên `test_cross`.
 - Trên dữ liệu hiện có, cả ba model URL (LR, GBDT, RF) đều không đạt tiêu chí recall 0.90 tại FPR 1% trên `test_cross` (xem `reports/url_metrics.json`). Thí nghiệm bổ sung với char n-gram không đạt điều kiện đã đặt trước để chuyển sang frontend (xem `reports/url_char_ngram_experiment.txt`).
 - Tin nhắn thật hiện chỉ gồm SMS (nhà mạng, ngân hàng, đầu số quảng cáo, tin lừa đảo), không có tin trò chuyện thường ngày. Model huấn luyện chỉ trên bộ này có nguy cơ gắn nhãn rủi ro cho tin chat; cần bổ sung tin `benign` kiểu chat (tổng hợp theo `SYNTHETIC_SPEC.md`, `source=synthetic`) và đánh giá trên tập test gán tay kiểu chat.
-- Nhãn `spam` và `benign` của bộ SMS được gán bằng luật nên có nhiễu; chưa đo tỷ lệ sai. Validation lấy từ tin `real` nên cũng chỉ gồm SMS, do đó số đo trên validation không đại diện cho tin chat.
+- Nhãn `spam` và `benign` của bộ SMS được gán bằng luật nên có nhiễu; chưa đo tỷ lệ sai. Validation lấy từ tin `real` nên cũng chỉ gồm SMS, do đó số đo trên validation không đại diện cho tin chat. Lần 1 xác nhận điều này: FPR 25% trên validation SMS nhưng 55% trên test chat (`model_card.md`, mục 2). Từ lần 2, validation có thêm một phần tin chat tổng hợp; phần này vẫn lạc quan hơn chat thật vì cùng nguồn sinh với dữ liệu train.
 - Chưa có số đo độ trễ và bộ nhớ trên trình duyệt ở thiết bị thật. Trang `/bench` của frontend dùng cho việc này.
 - Các phương án nâng cấp mô hình tin nhắn (e5, PhoBERT, chưng cất tri thức) chưa được thực hiện. Chỉ cân nhắc khi baseline TF-IDF kết hợp LR không đạt tiêu chí và còn ít nhất ba ngày.
 
