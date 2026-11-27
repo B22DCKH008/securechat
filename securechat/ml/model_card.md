@@ -16,22 +16,42 @@ Ngoài phạm vi: tin nhắn không phải tiếng Việt, ảnh và mã QR, t�
 
 **Kiến trúc.** Chuẩn hóa văn bản (chữ thường, bỏ dấu và đổi `đ` thành `d`, thay URL bằng token `urltoken` và số dài bằng token `bignum`), TF-IDF trên n-gram ký tự 2 đến 5 (có đệm khoảng trắng) kết hợp n-gram từ 1 đến 2, `sublinear_tf`, `min_df=2`, tối đa 50.000 đặc trưng, rồi hồi quy logistic đa lớp (`C=4`, `class_weight=balanced`). Điểm rủi ro là 1 trừ xác suất `benign`; cảnh báo khi điểm này không thấp hơn ngưỡng. Model được xuất thành JSON và TypeScript tự tính lại TF-IDF và hồi quy, nên không cần runtime ONNX cho model này. Bỏ dấu giúp model chịu được tin không dấu và tin viết tắt, đổi lại mất một phần thông tin do dấu mang.
 
-**Dữ liệu huấn luyện.** Nguồn thật là bộ SMS tiếng Việt công khai (`data/SOURCES.md`, mục 4): 2.991 tin, còn 2.577 tin sau khi loại 24 tin tiếng Anh, 388 tin trùng và 2 tin có nhãn mâu thuẫn, gồm 1.099 `spam`, 767 `benign`, 711 `scam`. Bộ gốc chỉ có hai nhãn (0 và 1); ba nhãn của dự án được suy ra bằng luật (`src/securechat_ml/data/vi_sms.py`), có tệp sửa tay (`data/vi_sms_overrides.csv`, 8 dòng); 14 tin có thông tin cá nhân đã được che trước khi lưu. Lần xem lại đầu tiên với 150 tin cho thấy luật sai ở 8 tin (ước tính khoảng 6%, mẫu nhỏ nên khoảng tin cậy rộng); sau đó đã xem lại thêm 50 tin và sửa luật theo các lỗi tìm được (chi tiết ở `README.md`, phần về bộ SMS). Phần dữ liệu chat tổng hợp (`data/SYNTHETIC_SPEC.md`): /.
+**Dữ liệu huấn luyện.** Nguồn thật là bộ SMS tiếng Việt công khai (`data/SOURCES.md`, mục 4): 2.991 tin, còn 2.577 tin sau khi loại 24 tin tiếng Anh, 388 tin trùng và 2 tin có nhãn mâu thuẫn, gồm 1.099 `spam`, 767 `benign`, 711 `scam`. Bộ gốc chỉ có hai nhãn (0 và 1); ba nhãn của dự án được suy ra bằng luật (`src/securechat_ml/data/vi_sms.py`), có tệp sửa tay (`data/vi_sms_overrides.csv`, 8 dòng); 14 tin có thông tin cá nhân đã được che trước khi lưu. Lần xem lại đầu tiên với 150 tin cho thấy luật sai ở 8 tin (ước tính khoảng 6%, mẫu nhỏ nên khoảng tin cậy rộng); sau đó đã xem lại thêm 50 tin và sửa luật theo các lỗi tìm được (chi tiết ở `README.md`, phần về bộ SMS). Phần dữ liệu chat tổng hợp (`data/SYNTHETIC_SPEC.md`): lần 1 có 300 tin do AI sinh ngày 26/11/2026 (`messages_ai_synthetic_v0.csv`, 100 tin mỗi nhãn, nhãn theo kịch bản sinh), chiếm 300 trên 2.480 tin của tập train (12%). Lần 2: /.
 
-**Dữ liệu đánh giá.** Tập test do người thực hiện tự viết và tự gán nhãn (`messages_handlabeled.csv`), không sinh bằng AI, không sao chép từ bộ SMS; quy cách ở `data/LABELING_GUIDE.md`. Trạng thái: chưa viết. Tập validation lấy từ tin thật của bộ SMS, tách theo nhóm tin gần giống nhau. Tin tổng hợp không bao giờ vào test.
+**Dữ liệu đánh giá.** Tập test do người thực hiện tự viết và tự gán nhãn (`messages_handlabeled.csv`), không sinh bằng AI, không sao chép từ bộ SMS; quy cách ở `data/LABELING_GUIDE.md`. Trạng thái: khóa ngày 27/11/2026, gồm 300 tin (100 mỗi nhãn), trong đó 167 tin đánh dấu `hard` (59 `benign`, 49 `spam`, 59 `scam`); checksum ở mục 6. Một người thứ hai gán độc lập 60 tin: đồng thuận 93,3%, kappa 0,900 cho ba nhãn và 1,000 cho nhóm rủi ro so với `benign` (`reports/handlabel_kappa.md`). Bảy tin có nhãn chỉ phân biệt được khi biết người gửi (`note` là "cần ngữ cảnh người gửi") nên kết quả được báo cáo trên cả 300 tin và trên 293 tin còn lại. Tập validation lấy từ tin thật của bộ SMS, tách theo nhóm tin gần giống nhau (lần 1: 386 tin). Tin tổng hợp không bao giờ vào test.
 
-**Tiêu chí đạt** (đặt trước khi xem kết quả): với nhóm rủi ro (`spam` và `scam` gộp, so với `benign`), precision không thấp hơn 0,90 và recall không thấp hơn 0,80 trên tập test gán tay. Ngưỡng cảnh báo chọn trên validation: recall lớn nhất với precision không thấp hơn 0,90.
+**Tiêu chí đạt** (đặt trước khi xem kết quả): với nhóm rủi ro (`spam` và `scam` gộp, so với `benign`), precision không thấp hơn 0,90 và recall không thấp hơn 0,80 trên tập test gán tay. Ngưỡng cảnh báo chọn trên validation: recall lớn nhất với precision không thấp hơn một mục tiêu cho trước; lần 1 mục tiêu này là 0,90, bằng tiêu chí đạt.
 
-**Kết quả.** Chưa huấn luyện trên dữ liệu thật; các số dưới đây điền sau khi tập test được khóa.
+**Kết quả lần 1** (27/11/2026, `reports/message_metrics_run1.json`). Đây là kết quả báo cáo chính. Khoảng tin cậy 95% theo bootstrap 500 lần ghi trong ngoặc.
 
 | Chỉ số trên tập test gán tay | Giá trị |
 |---|---|
-| Precision, recall, F1 theo từng nhãn | / |
-| Precision và recall của nhóm rủi ro (`spam` và `scam`) tại ngưỡng đã chọn | / |
-| Ma trận nhầm lẫn | / |
-| Kết quả riêng trên tập khó (`test_hard`) | / |
-| Khoảng tin cậy 95% (bootstrap) | / |
-| Đạt hay không đạt tiêu chí | / |
+| Phiên bản model và ngưỡng | `msg-29bd2d-50f635`, ngưỡng 0,3432, chọn trên validation (386 tin SMS: precision 0,902, recall 0,985, FPR 0,252) |
+| Nhóm rủi ro (300 tin, 200 rủi ro) | Precision 0,782 (0,725 đến 0,833), recall 0,985 (0,966 đến 1,000), F1 0,872 (0,838 đến 0,904), FPR 0,550, PR-AUC 0,968 |
+| Đếm theo nhóm rủi ro | 197 tin rủi ro được cảnh báo, 3 bị bỏ sót, 55 tin bình thường bị cảnh báo nhầm, 45 tin bình thường không bị cảnh báo |
+| Theo từng nhãn (precision, recall, F1) | `benign` 0,938, 0,450, 0,608; `spam` 0,784, 0,690, 0,734; `scam` 0,567, 0,930, 0,705 |
+| Ma trận nhầm lẫn (hàng là nhãn thật; cột là dự đoán `benign`, `spam`, `scam`) | `benign` 45, 12, 43; `spam` 3, 69, 28; `scam` 0, 7, 93 |
+| Tập khó `test_hard` (167 tin) | Precision 0,748 (0,677 đến 0,811), recall 0,991 (0,970 đến 1,000), FPR 0,610; `benign` đúng 23 trên 59 tin |
+| Bỏ 7 tin cần ngữ cảnh người gửi (293 tin, 196 rủi ro) | Precision 0,788 (0,732 đến 0,839), recall 0,985 (0,964 đến 1,000), F1 0,875 (0,839 đến 0,908), FPR 0,536. Đo lại model lần 1 bằng `eval-message` (`reports/message_eval_msg-29bd2d-50f635.json`). Cả 7 tin bị bỏ đều được model cảnh báo: 4 tin `scam` đúng, 3 tin `benign` nhầm |
+| Baseline luật (Nấc 0) trên cùng tập | Precision 1,000, recall 0,120, F1 0,214, FPR 0, PR-AUC 0,707 |
+| Đạt hay không đạt tiêu chí | Không đạt. Precision 0,782 dưới 0,90, và cận trên khoảng tin cậy (0,833) cũng dưới 0,90. Recall đạt |
+
+**Nhận xét lần 1.**
+
+- Model bắt gần hết tin rủi ro (bỏ sót 3 trên 200) nhưng cảnh báo nhầm 55 trên 100 tin bình thường: 43 tin bị xếp vào `scam`, 12 tin vào `spam`. So với luật, model bắt được nhiều hơn hẳn (recall 0,985 so với 0,120), còn luật gần như không cảnh báo nhầm.
+- FPR là 0,252 trên validation (SMS) nhưng 0,550 trên test (chat), trong khi tỷ lệ tin rủi ro ở hai tập gần nhau (70% và 67%). Kể cả tin `benign` không đánh dấu `hard`, model chỉ xếp đúng 22 trên 41 tin (suy ra từ test trừ `test_hard`). Kết quả này phù hợp với giả thuyết lệch miền giữa SMS (toàn bộ validation và 88% tập train) và tin chat (tập test), hơn là do tin khó.
+- Ngưỡng được chọn tại điểm validation vừa đạt precision 0,902, nên không còn biên an toàn khi phân bố dữ liệu thay đổi. Trong khi đó recall còn dư nhiều so với tiêu chí 0,80.
+- Precision phụ thuộc tỷ lệ tin rủi ro trong tập đo (67% ở tập test). Trong chat thật tin rủi ro hiếm hơn nhiều. Ví dụ minh họa (không phải số đo): nếu chỉ 5% tin là rủi ro thì với recall 0,985 và FPR 0,550, precision chỉ khoảng 0,09, tức phần lớn cảnh báo là nhầm. Vì vậy cần đọc FPR song song với precision, và giao diện chỉ nên cảnh báo mềm.
+
+**Quyết định sau lần 1** (27/11/2026, sau khi đã xem kết quả test lần 1):
+
+1. Sinh thêm tin chat tổng hợp, ưu tiên `benign` kiểu chat đời thường (`data/SYNTHETIC_SPEC.md`, mục 4).
+2. Thêm 20% số nhóm tin tổng hợp vào validation (`split.val_synthetic_fraction`), vì validation toàn SMS không cho thấy lỗi trên chat. Phần này cùng nguồn sinh với dữ liệu train nên vẫn lạc quan hơn chat thật.
+3. Chọn ngưỡng với precision mục tiêu 0,95 trên validation (`threshold.target_precision`). Tiêu chí đạt trên test giữ nguyên 0,90 (`threshold.quality_precision`) và recall 0,80.
+
+Vì các thay đổi trên được quyết định sau khi đã xem kết quả test, số đo của lần 2 trên cùng tập test không còn là ước lượng hoàn toàn độc lập. Báo cáo cần nêu cả hai lần. Không có nhãn hay dòng nào của tập test bị sửa hoặc loại sau khi xem kết quả. Quy tắc dừng: chỉ thêm một vòng cải thiện; nếu lần 2 vẫn không đạt thì giữ model, ghi nguyên nhân và giao diện dùng cảnh báo mềm.
+
+**Kết quả lần 2:** /.
 
 ## 3. Model URL
 
@@ -64,7 +84,8 @@ Ngoài phạm vi: tin nhắn không phải tiếng Việt, ảnh và mã QR, t�
 ## 4. Giới hạn
 
 - **Chỉ tiếng Việt.** Không dùng và không đánh giá cho ngôn ngữ khác. Tin có xen tiếng Anh hoặc tiếng lóng có thể cho kết quả kém hơn.
-- **Lệch phân bố giữa dữ liệu huấn luyện và tin chat.** Dữ liệu thật hiện có toàn là tin SMS của nhà mạng, ngân hàng và đầu số quảng cáo, không có hội thoại giữa người với người. Tin `benign` của chat đời thường chủ yếu đến từ dữ liệu tổng hợp, do đó mức tin cậy của model trên chat thật chỉ được biết qua tập test gán tay. Validation cũng lấy từ SMS nên ngưỡng chọn trên đó có thể không phù hợp với chat.
+- **Lệch phân bố giữa dữ liệu huấn luyện và tin chat.** Dữ liệu thật hiện có toàn là tin SMS của nhà mạng, ngân hàng và đầu số quảng cáo, không có hội thoại giữa người với người. Tin `benign` của chat đời thường chủ yếu đến từ dữ liệu tổng hợp, do đó mức tin cậy của model trên chat thật chỉ được biết qua tập test gán tay. Validation cũng lấy từ SMS nên ngưỡng chọn trên đó có thể không phù hợp với chat. Lần 1 xác nhận rủi ro này: FPR 0,252 trên validation SMS nhưng 0,550 trên test chat (mục 2).
+- **Precision phụ thuộc tỷ lệ tin rủi ro.** Tập test có 67% tin rủi ro để đo được cả ba nhãn; trong chat thật tỷ lệ này thấp hơn nhiều, nên precision thực tế sẽ thấp hơn số đo trên test. FPR (tỷ lệ tin bình thường bị cảnh báo nhầm) không phụ thuộc tỷ lệ này và cần được báo cáo kèm.
 - **Nhãn nhiễu.** Nhãn `spam` và `benign` của bộ SMS do luật gán, không phải do người gán từng tin; ranh giới giữa quảng cáo và thông báo dịch vụ không rõ ràng. Khoảng một phần ba tin `scam` trong mẫu xem lại là chuỗi ký tự bị xáo trộn để qua mặt bộ lọc, ít gặp trong trò chuyện thông thường, nên tỷ lệ `scam` của bộ này không phản ánh tỷ lệ ngoài thực tế.
 - **Model URL kém trên miền mới.** Xem mục 3. Bỏ sót phần lớn URL phishing của PhishVN ở FPR 1%. Chỉ dùng đặc trưng cú pháp nên không phát hiện được URL trông bình thường nhưng độc hại, và dễ nhầm với URL hợp lệ có cấu trúc lạ. Tên miền đăng ký được xác định theo cách đơn giản nên các nền tảng cho thuê tên miền con (như vercel.app) bị tính chung một tên miền khi chia tập.
 - **Không phải kết luận an toàn.** `none` chỉ có nghĩa là model không thấy dấu hiệu. Kẻ tấn công có thể cố ý viết để né model, và model chưa được thử với tin nhắn đối kháng.
@@ -102,5 +123,6 @@ Timeout hiện đặt tạm là 1500 ms và chỉ được chốt sau khi có s�
 - Mã nguồn: `ml/`, Python từ 3.10 trở lên. File model `joblib` cần nạp bằng đúng phiên bản scikit-learn lúc huấn luyện (`requirements.txt` chỉ ghi cận dưới). Model ONNX xuất bằng skl2onnx 1.20; lý do không dùng `HistGradientBoosting` ghi trong `configs/url.yaml`.
 - Hạt giống: 42 (`configs/*.yaml`).
 - Phiên bản model URL đang dùng: `url-24b1a4-c1c13f`.
+- Model tin nhắn lần 1: `msg-29bd2d-50f635` (`reports/message_metrics_run1.json`). Để tái lập: `split.val_synthetic_fraction: 0`, `threshold.target_precision: 0.90`, train pool gồm `messages_vi_sms.csv` và `messages_ai_synthetic_v0.csv`.
 - Đối chiếu Python và TypeScript: LR URL lệch tối đa 9,3e-8 về xác suất và trùng quyết định 100% trên 512 ca (`reports/parity_python.json`); phía TypeScript có test đối chiếu bằng fixtures trong `frontend/tests/ai`.
-- Dữ liệu đầu vào và checksum: `data/SOURCES.md`, mục 2. Checksum của tập test gán tay ghi vào đó khi khóa tập: /.
+- Dữ liệu đầu vào và checksum: `data/SOURCES.md`, mục 2. SHA-256 của tập test gán tay (khóa ngày 27/11/2026): `8fe3ae9327b53ec340e3a9d17737ed73ec3d6b9ade180dee7418f4eb3bb63a75`.
