@@ -16,7 +16,7 @@ Ngoài phạm vi: tin nhắn không phải tiếng Việt, ảnh và mã QR, t�
 
 **Kiến trúc.** Chuẩn hóa văn bản (chữ thường, bỏ dấu và đổi `đ` thành `d`, thay URL bằng token `urltoken` và số dài bằng token `bignum`), TF-IDF trên n-gram ký tự 2 đến 5 (có đệm khoảng trắng) kết hợp n-gram từ 1 đến 2, `sublinear_tf`, `min_df=2`, tối đa 50.000 đặc trưng, rồi hồi quy logistic đa lớp (`C=4`, `class_weight=balanced`). Điểm rủi ro là 1 trừ xác suất `benign`; cảnh báo khi điểm này không thấp hơn ngưỡng. Model được xuất thành JSON và TypeScript tự tính lại TF-IDF và hồi quy, nên không cần runtime ONNX cho model này. Bỏ dấu giúp model chịu được tin không dấu và tin viết tắt, đổi lại mất một phần thông tin do dấu mang.
 
-**Dữ liệu huấn luyện.** Nguồn thật là bộ SMS tiếng Việt công khai (`data/SOURCES.md`, mục 4): 2.991 tin, còn 2.577 tin sau khi loại 24 tin tiếng Anh, 388 tin trùng và 2 tin có nhãn mâu thuẫn, gồm 1.099 `spam`, 767 `benign`, 711 `scam`. Bộ gốc chỉ có hai nhãn (0 và 1); ba nhãn của dự án được suy ra bằng luật (`src/securechat_ml/data/vi_sms.py`), có tệp sửa tay (`data/vi_sms_overrides.csv`, 8 dòng); 14 tin có thông tin cá nhân đã được che trước khi lưu. Lần xem lại đầu tiên với 150 tin cho thấy luật sai ở 8 tin (ước tính khoảng 6%, mẫu nhỏ nên khoảng tin cậy rộng); sau đó đã xem lại thêm 50 tin và sửa luật theo các lỗi tìm được (chi tiết ở `README.md`, phần về bộ SMS). Phần dữ liệu chat tổng hợp (`data/SYNTHETIC_SPEC.md`): lần 1 có 300 tin do AI sinh ngày 26/11/2026 (`messages_ai_synthetic_v0.csv`, 100 tin mỗi nhãn, nhãn theo kịch bản sinh), chiếm 300 trên 2.480 tin của tập train (12%). Lần 2: /.
+**Dữ liệu huấn luyện.** Nguồn thật là bộ SMS tiếng Việt công khai (`data/SOURCES.md`, mục 4): 2.991 tin, còn 2.577 tin sau khi loại 24 tin tiếng Anh, 388 tin trùng và 2 tin có nhãn mâu thuẫn, gồm 1.099 `spam`, 767 `benign`, 711 `scam`. Bộ gốc chỉ có hai nhãn (0 và 1); ba nhãn của dự án được suy ra bằng luật (`src/securechat_ml/data/vi_sms.py`), có tệp sửa tay (`data/vi_sms_overrides.csv`, 8 dòng); 14 tin có thông tin cá nhân đã được che trước khi lưu. Lần xem lại đầu tiên với 150 tin cho thấy luật sai ở 8 tin (ước tính khoảng 6%, mẫu nhỏ nên khoảng tin cậy rộng); sau đó đã xem lại thêm 50 tin và sửa luật theo các lỗi tìm được (chi tiết ở `README.md`, phần về bộ SMS). Phần dữ liệu chat tổng hợp (`data/SYNTHETIC_SPEC.md`): lần 1 có 300 tin do AI sinh ngày 26/11/2026 (`messages_ai_synthetic_v0.csv`, 100 tin mỗi nhãn, nhãn theo kịch bản sinh), chiếm 300 trên 2.480 tin của tập train (12%). Lần 2 thêm 640 tin chat do AI sinh ngày 27/11/2026 (7 tệp `messages_ai_synthetic_v1_*.csv`: 360 `benign`, 177 `scam`, 103 `spam`; cách rà và lọc ghi ở `data/SOURCES.md`, mục 2). Train pool lần 2 có 3.520 tin (2.577 SMS thật, 943 tin tổng hợp), còn 3.509 tin sau khi loại 11 tin trùng; tập train có 2.938 tin, trong đó 758 tin tổng hợp (26%); validation có 571 tin (386 SMS thật và 185 tin tổng hợp).
 
 **Dữ liệu đánh giá.** Tập test do người thực hiện tự viết và tự gán nhãn (`messages_handlabeled.csv`), không sinh bằng AI, không sao chép từ bộ SMS; quy cách ở `data/LABELING_GUIDE.md`. Trạng thái: khóa ngày 27/11/2026, gồm 300 tin (100 mỗi nhãn), trong đó 167 tin đánh dấu `hard` (59 `benign`, 49 `spam`, 59 `scam`); checksum ở mục 6. Một người thứ hai gán độc lập 60 tin: đồng thuận 93,3%, kappa 0,900 cho ba nhãn và 1,000 cho nhóm rủi ro so với `benign` (`reports/handlabel_kappa.md`). Bảy tin có nhãn chỉ phân biệt được khi biết người gửi (`note` là "cần ngữ cảnh người gửi") nên kết quả được báo cáo trên cả 300 tin và trên 293 tin còn lại. Tập validation lấy từ tin thật của bộ SMS, tách theo nhóm tin gần giống nhau (lần 1: 386 tin). Tin tổng hợp không bao giờ vào test.
 
@@ -51,7 +51,28 @@ Ngoài phạm vi: tin nhắn không phải tiếng Việt, ảnh và mã QR, t�
 
 Vì các thay đổi trên được quyết định sau khi đã xem kết quả test, số đo của lần 2 trên cùng tập test không còn là ước lượng hoàn toàn độc lập. Báo cáo cần nêu cả hai lần. Không có nhãn hay dòng nào của tập test bị sửa hoặc loại sau khi xem kết quả. Quy tắc dừng: chỉ thêm một vòng cải thiện; nếu lần 2 vẫn không đạt thì giữ model, ghi nguyên nhân và giao diện dùng cảnh báo mềm.
 
-**Kết quả lần 2:** /.
+**Kết quả lần 2** (28/11/2026, `reports/message_metrics_run2.json`). Đây là model đang dùng. Khoảng tin cậy 95% theo bootstrap 500 lần ghi trong ngoặc.
+
+| Chỉ số | Giá trị |
+|---|---|
+| Phiên bản model và ngưỡng | `msg-29bd2d-f60d69`, ngưỡng 0,6199, chọn trên validation với precision mục tiêu 0,95 (571 tin: precision 0,950, recall 0,937, FPR 0,087) |
+| Validation theo nguồn | SMS thật (386 tin): precision 0,973, recall 0,934, FPR 0,061. Chat tổng hợp (185 tin): precision 0,890, recall 0,947, FPR 0,121 |
+| Test, nhóm rủi ro (300 tin, 200 rủi ro) | Precision 0,951 (0,918 đến 0,979), recall 0,870 (0,827 đến 0,917), F1 0,909 (0,879 đến 0,939), FPR 0,090, PR-AUC 0,979 |
+| Đếm theo nhóm rủi ro | 174 tin rủi ro được cảnh báo, 26 bị bỏ sót, 9 tin bình thường bị cảnh báo nhầm, 91 tin bình thường không bị cảnh báo |
+| Theo từng nhãn (precision, recall, F1) | `benign` 0,778, 0,910, 0,839; `spam` 0,865, 0,640, 0,736; `scam` 0,697, 0,760, 0,727 |
+| Ma trận nhầm lẫn (hàng là nhãn thật; cột là dự đoán `benign`, `spam`, `scam`) | `benign` 91, 2, 7; `spam` 10, 64, 26; `scam` 16, 8, 76 |
+| Tập khó `test_hard` (167 tin) | Precision 0,918 (0,857 đến 0,965), recall 0,833 (0,754 đến 0,897), FPR 0,136 |
+| Bỏ 7 tin cần ngữ cảnh người gửi (293 tin) | Precision 0,950 (0,919 đến 0,981), recall 0,878 (0,832 đến 0,918), FPR 0,093 |
+| Baseline luật (Nấc 0) trên cùng tập test | Không đổi so với lần 1: precision 1,000, recall 0,120 |
+| Đạt hay không đạt tiêu chí | Đạt trên tập test (300 tin) và trên 293 tin; cận dưới khoảng tin cậy của precision (0,918) và recall (0,827) đều trên tiêu chí. Trên `test_hard`, giá trị đo đạt nhưng cận dưới khoảng tin cậy thấp hơn tiêu chí |
+
+**Nhận xét lần 2.**
+
+- So với lần 1, số tin bình thường bị cảnh báo nhầm giảm từ 55 xuống 9 trên 100 (FPR từ 0,550 xuống 0,090), đổi lại số tin rủi ro bị bỏ sót tăng từ 3 lên 26 trên 200 (recall từ 0,985 xuống 0,870). Thay đổi đến từ hai phía: dữ liệu chat thêm vào và ngưỡng cao hơn (0,6199 so với 0,3432).
+- Phần chat tổng hợp của validation không lạc quan hơn test như dự kiến khi thiết kế: FPR trên phần này (0,121) còn cao hơn trên test (0,090). Do đó cảnh báo "phần tổng hợp lạc quan hơn chat thật" trong `split_manifest.json` là giả định thận trọng, không phải kết quả đo được.
+- Lỗi nguy hiểm nhất bây giờ là bỏ sót lừa đảo: 16 trên 100 tin `scam` bị xếp vào `benign`, nên người dùng không được cảnh báo. Nhầm lẫn giữa `spam` và `scam` (26 và 8 tin) không ảnh hưởng tới việc có cảnh báo hay không, vì cả hai đều thuộc nhóm rủi ro.
+- Như lần 1, precision phụ thuộc tỷ lệ tin rủi ro trong tập đo (67% ở test). Ví dụ minh họa (không phải số đo): nếu chỉ 5% tin là rủi ro thì với recall 0,870 và FPR 0,090, precision khoảng 0,34.
+- Theo quy tắc dừng đã ghi ở trên, không có vòng cải thiện thứ ba; model lần 2 là model được đưa vào giao diện. Số đo lần 2 không hoàn toàn độc lập với tập test vì các thay đổi được quyết định sau khi xem kết quả lần 1.
 
 ## 3. Model URL
 
@@ -123,6 +144,7 @@ Timeout hiện đặt tạm là 1500 ms và chỉ được chốt sau khi có s�
 - Mã nguồn: `ml/`, Python từ 3.10 trở lên. File model `joblib` cần nạp bằng đúng phiên bản scikit-learn lúc huấn luyện (`requirements.txt` chỉ ghi cận dưới). Model ONNX xuất bằng skl2onnx 1.20; lý do không dùng `HistGradientBoosting` ghi trong `configs/url.yaml`.
 - Hạt giống: 42 (`configs/*.yaml`).
 - Phiên bản model URL đang dùng: `url-24b1a4-c1c13f`.
+- Model tin nhắn đang dùng (lần 2): `msg-29bd2d-f60d69` (`reports/message_metrics_run2.json`), cấu hình như `configs/message.yaml` hiện tại, train pool gồm `messages_vi_sms.csv`, `messages_ai_synthetic_v0.csv` và 7 tệp `messages_ai_synthetic_v1_*.csv`.
 - Model tin nhắn lần 1: `msg-29bd2d-50f635` (`reports/message_metrics_run1.json`). Để tái lập: `split.val_synthetic_fraction: 0`, `threshold.target_precision: 0.90`, train pool gồm `messages_vi_sms.csv` và `messages_ai_synthetic_v0.csv`.
 - Đối chiếu Python và TypeScript: LR URL lệch tối đa 9,3e-8 về xác suất và trùng quyết định 100% trên 512 ca (`reports/parity_python.json`); phía TypeScript có test đối chiếu bằng fixtures trong `frontend/tests/ai`.
 - Dữ liệu đầu vào và checksum: `data/SOURCES.md`, mục 2. SHA-256 của tập test gán tay (khóa ngày 27/11/2026): `8fe3ae9327b53ec340e3a9d17737ed73ec3d6b9ade180dee7418f4eb3bb63a75`.
