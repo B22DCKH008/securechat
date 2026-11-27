@@ -1,27 +1,11 @@
 {
   "ok": true,
-  "message": null,
-  "url": {
-    "lr": {
-      "n": 512,
-      "max_abs_prob_diff": 9.253140509368762e-08,
-      "decision_agreement": 1.0,
-      "tolerance": 1e-06,
-      "ok": true
-    },
-    "gbdt": {
-      "n": 512,
-      "max_abs_prob_diff": 8.65393316173968e-08,
-      "decision_agreement": 1.0,
-      "tolerance": 0.0001,
-      "ok": true
-    },
-    "rf": {
-      "n": 512,
-      "max_abs_prob_diff": 1.312890322013871e-07,
-      "decision_agreement": 1.0,
-      "tolerance": 0.0001,
-      "ok": true
-    }
-  }
+  "message": {
+    "n": 371,
+    "max_abs_prob_diff": 1.9768558123800517e-08,
+    "label_agreement": 1.0,
+    "ok": true,
+    "tolerance": 1e-05
+  },
+  "url": {}
 }

@@ -1,4 +1,4 @@
-seed: 42
+﻿seed: 42
 
 # Tên file nằm trong data/raw/ (hoặc data/demo/raw/ khi chạy --demo)
 files:
@@ -11,7 +11,7 @@ featurizer:                # PHẢI giống hệt phía TypeScript (xem docs tro
   word_ngram: [1, 2]
   sublinear_tf: true
   min_df: 2
-  max_features: 50000
+  max_features: 5000
 
 model:
   C: 4.0
