@@ -115,29 +115,34 @@ Vì các thay đổi trên được quyết định sau khi đã xem kết quả
 
 ## 5. Chạy trên thiết bị
 
-Các số đo bằng trang `/bench` của frontend (`frontend/README.md`, mục 5.2). Mỗi dòng đo 5 lần khởi động và 50 lần tính.
+Các số đo bằng trang `/bench` của frontend (`frontend/README.md`, mục 5.2). Mỗi dòng đo 5 lần khởi động và 50 lần tính. Từ 28/11/2026 trang đo cả hai model cùng lúc (model tin nhắn `msg-29bd2d-f60d69` và model URL `url-24b1a4-c1c13f`); báo cáo gốc nằm ở `reports/ai_bench_2026-11-28_may-thuong.json` và `reports/ai_bench_2026-11-28_gia-lap-cpu6x-fast4g.json`.
 
-| Chỉ số | Model URL (LR, JSON) | Model tin nhắn |
-|---|---|---|
-| Kích thước | 1,6 KB | / |
-| Nạp lần đầu | 16,8 ms (trong đó 7,7 ms ở engine) | / |
-| Lần gọi đầu sau khi nạp | 0,1 ms | / |
-| Độ trễ p50, p95, p99 | 0,1 ms, 0,2 đến 0,3 ms, 0,5 ms | / |
-| Một lần gửi tin (tin nhắn cùng 0, 1, 5 URL) | / | / |
-| Chênh lệch khi bật và tắt AI | / | / |
-| Bộ nhớ heap luồng chính | 3,7 MB lên 4,4 MB | / |
-| CPU và RAM của Worker | / | / |
-| Tác vụ dài trên luồng chính (trên 50 ms) | 0 lần | / |
+| Chỉ số | Model URL (25/11, máy thường) | Cả hai model, máy thường (28/11) | Cả hai model, giả lập máy yếu (28/11) |
+|---|---|---|---|
+| Kích thước | 1,6 KB | 2,14 MB (model tin nhắn) | như cột bên |
+| Nạp lần đầu | 16,8 ms (7,7 ms ở engine) | 63,8 ms (30,5 ms ở engine) | 4.237 ms (3.028 ms ở engine) |
+| Lần gọi đầu sau khi nạp (model tin nhắn) | 0,1 ms (model URL) | 1,2 ms | 8,0 ms |
+| Model tin nhắn, p50 / p95 / p99 (tin 20 đến 4.000 ký tự) | / | 0,3–1,9 / 0,6–2,8 / 0,8–3,0 ms | 6,0–14,7 / 13,0–18,0 / 14,1–20,6 ms |
+| Model URL, p50 / p95 / p99 | 0,1 / 0,2–0,3 / 0,5 ms | 0,2 / 0,3–0,5 / 1,0–1,2 ms | 11,3–11,6 / 15,3–20,4 / 17,5–25,6 ms |
+| Một lần gửi tin (0, 1 hoặc 5 URL), p50 / p95 | / | 0,2 / 0,5–0,8 ms | 11,8–14,0 / 15,0–18,0 ms |
+| Chênh lệch khi bật và tắt AI, p50 / p95 / tối đa | / | 0,5–0,6 / 1,4–1,7 / 1,9 ms | 41,7–43,5 / 51,6–58,2 / 62,4 ms |
+| Bộ nhớ heap luồng chính | 3,7 MB lên 4,4 MB | 14,7 MB lên 16,0 MB | 16,1 MB lên 15,7 MB |
+| Tác vụ dài trên luồng chính (trên 50 ms) | 0 lần | 0 lần | 0 lần |
+| Lần lỗi, quá hạn hoặc chưa nạp | 0 | 0 | 0 |
 
-**Thiết bị đã đo (25/11/2026):** Acer Nitro 5 AN515-57, 12 luồng CPU, RAM 16 GB, Chrome 158 trên Windows, chạy bản build bằng `npm run preview`, Web Worker có sẵn, trang không ở chế độ cô lập nguồn gốc. Đây là máy cấu hình khá, chưa phải thiết bị yếu. Chưa đo trên thiết bị yếu hoặc điện thoại.
+**Thiết bị đã đo:** Acer Nitro 5 AN515-57, 12 luồng CPU, RAM 16 GB, Chrome 158 trên Windows, Web Worker có sẵn, trang không ở chế độ cô lập nguồn gốc. Ngày 25/11/2026 chạy bản build (`npm run preview`); ngày 28/11/2026 chạy dev server (`npm run dev`). Cột "giả lập máy yếu" dùng DevTools của Chrome: CPU chậm 6 lần, mạng Fast 4G, tắt bộ nhớ đệm. Đây là giả lập trên máy mạnh, không phải điện thoại thật; chưa đo trên thiết bị yếu thật.
 
-**Độ chính xác.** Khi trang không cô lập nguồn gốc, trình duyệt làm tròn đồng hồ đo đến 0,1 ms, nên với model URL chỉ nên đọc kết quả là "dưới 1 ms". Phép đo này chỉ cho thấy model URL không phải nút cổ chai; thời gian chờ tối đa sẽ chốt theo p95 của model tin nhắn trên thiết bị yếu.
+**Độ chính xác.** Khi trang không cô lập nguồn gốc, trình duyệt làm tròn đồng hồ đo đến 0,1 ms, nên các số dưới 1 ms chỉ nên đọc là "dưới 1 ms". Khi giả lập máy yếu, độ trễ gần như không phụ thuộc độ dài tin (tin 4.000 ký tự còn nhanh hơn tin ngắn), cho thấy phần lớn thời gian là chi phí trao đổi với Web Worker chứ không phải tính toán của model.
+
+**Thời gian chờ.** Chốt 500 ms cho mỗi lần phân tích (`configs/labels.yaml`, mục `runtime.timeout_ms`; `DEFAULT_AI_TIMEOUT_MS` ở frontend), khoảng 8 lần mức tệ nhất khi giả lập máy yếu (62,4 ms). Không đặt sát số đo vì khi quá hạn frontend hủy engine và nạp lại model, việc này mất khoảng 4 giây trên máy yếu. Model được nạp ở nền ngay khi đăng nhập. Tin gửi hoặc nhận trong lúc model chưa nạp xong không phải chờ (chờ tối đa bằng thời gian chờ ở trên); kết quả AI của tin đó là "không khả dụng".
+
+**Tải model qua mạng.** Thời gian nạp lần đầu khi giả lập Fast 4G (4,2 giây) chủ yếu là tải file JSON 2,14 MB. Khi triển khai cần bật nén (gzip hoặc brotli) cho thư mục `models/`; repo hiện chưa có cấu hình máy chủ web cho frontend nên chưa đo được kích thước sau nén.
 
 **Công tắc tắt AI.** Khi tắt AI, cả ba ca gửi tin đều không có lần phân tích nào của model chạy ra kết quả (0 trên 50 lần mỗi ca). Luật dữ liệu nhạy cảm vẫn chạy khi AI tắt.
 
 **Thư viện ONNX.** Bản build có file WebAssembly của onnxruntime-web nặng 14,8 MB (3,9 MB khi nén gzip). File này chỉ được nạp khi manifest có model ONNX; model LR dạng JSON đang dùng không cần đến nó, đó là một lý do giữ LR cho phía client.
 
-Timeout hiện đặt tạm là 1500 ms và chỉ được chốt sau khi có số đo của model tin nhắn trên thiết bị yếu. Khi quá hạn, lỗi hoặc chưa nạp được model, ứng dụng hiện "AI không khả dụng" và vẫn cho gửi tin.
+Khi quá hạn, lỗi hoặc chưa nạp được model, ứng dụng hiện "AI không khả dụng" và vẫn cho gửi tin.
 
 ## 6. Tái lập
 

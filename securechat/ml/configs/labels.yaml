@@ -22,4 +22,4 @@ url_model:
 
 runtime:
   target: typescript-json+onnxruntime-web   # message: JSON + TS; url: LR JSON hoặc ONNX
-  timeout_ms: null             # quá hạn => status "timeout"/"unavailable", KHÔNG bao giờ "safe"
+  timeout_ms: 500              # chốt 28/11/2026 theo /bench (giả lập máy yếu: p95 thêm 52–58 ms, tối đa 62 ms); quá hạn => status "timeout"/"unavailable", KHÔNG bao giờ "safe"
