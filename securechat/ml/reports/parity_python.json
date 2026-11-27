@@ -1,6 +1,12 @@
 {
   "ok": true,
-  "message": null,
+  "message": {
+    "n": 314,
+    "max_abs_prob_diff": 6.130773111401311e-09,
+    "label_agreement": 1.0,
+    "ok": true,
+    "tolerance": 1e-05
+  },
   "url": {
     "lr": {
       "n": 512,
