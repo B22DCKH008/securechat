@@ -132,6 +132,46 @@ describe('createRiskAnalyzer', () => {
     await a.retryInit();
     expect((await a.analyzeMessage('x')).status).toBe('ok');
   });
+
+  it('model đang nạp lâu => unavailable ngay sau initWaitMs, nạp vẫn tiếp tục ở nền', async () => {
+    let finishLoad!: () => void;
+    const loaded = new Promise<void>((r) => (finishLoad = r));
+    const init = vi.fn(async () => {
+      await loaded;
+      return { loadMs: 4000 };
+    });
+    const engine = fakeEngine({ init });
+    const a = createRiskAnalyzer(engine, { timeoutMs: 500, initWaitMs: 20 });
+
+    const t0 = performance.now();
+    expect(await a.analyzeMessage('x')).toEqual({ status: 'unavailable' });
+    expect(performance.now() - t0).toBeLessThan(400); // không chờ đến khi model nạp xong
+    expect(a.getState().phase).toBe('loading');
+    expect(engine.resets).toBe(0); // đang nạp thì không hủy engine
+
+    finishLoad();
+    await a.init();
+    expect(a.getState().phase).toBe('ready');
+    expect((await a.analyzeMessage('x')).status).toBe('ok');
+    expect(init).toHaveBeenCalledTimes(1); // các lần gọi dùng chung một lần nạp
+  });
+
+  it('model nạp xong trong initWaitMs => vẫn phân tích bình thường ở lần gọi đầu', async () => {
+    const init = async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      return { loadMs: 10 };
+    };
+    const a = createRiskAnalyzer(fakeEngine({ init }), { timeoutMs: 500, initWaitMs: 300 });
+    expect((await a.analyzeMessage('x')).status).toBe('ok');
+  });
+
+  it('initWaitMs mặc định bằng timeoutMs', async () => {
+    const init = () => new Promise<{ loadMs: number }>(() => {}); // không bao giờ xong
+    const a = createRiskAnalyzer(fakeEngine({ init }), { timeoutMs: 30 });
+    const t0 = performance.now();
+    expect(await a.analyzeMessage('x')).toEqual({ status: 'unavailable' });
+    expect(performance.now() - t0).toBeLessThan(400);
+  });
 });
 
 describe('assessRisk', () => {

@@ -20,6 +20,12 @@ export interface AnalyzerState {
 export interface AnalyzerOptions {
   /** Quá hạn => status 'timeout'. Giá trị cụ thể do nhóm chốt sau khi đo (labels.yaml: runtime.timeout_ms). */
   timeoutMs: number;
+  /**
+   * Thời gian tối đa một lần phân tích chờ model đang nạp (mặc định = timeoutMs). Hết thời gian thì trả
+   * 'unavailable' NGAY, còn việc nạp vẫn tiếp tục ở nền. Nhờ vậy gửi tin không bị kẹt vài giây khi model
+   * (khoảng 2 MB) chưa nạp xong trên máy yếu hoặc mạng chậm.
+   */
+  initWaitMs?: number;
   enabled?: boolean;
   now?: () => number;
 }
@@ -34,6 +40,18 @@ export interface ControllableAnalyzer extends RiskAnalyzer {
 
 class TimeoutError extends Error {
   override name = 'TimeoutError';
+}
+
+/** Chờ `p` tối đa `ms`; trả true nếu `p` xong (thành công hoặc lỗi) trong thời gian đó. Không hủy `p`. */
+function settlesWithin(p: Promise<unknown>, ms: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const t = setTimeout(() => resolve(false), ms);
+    const done = () => {
+      clearTimeout(t);
+      resolve(true);
+    };
+    p.then(done, done);
+  });
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -84,10 +102,16 @@ export function createRiskAnalyzer(
     return initPromise;
   }
 
-  /** Trả về lý do không chạy được, hoặc null nếu sẵn sàng. */
+  /**
+   * Trả về lý do không chạy được, hoặc null nếu sẵn sàng. Không chờ model đang nạp quá `initWaitMs`:
+   * việc nạp tiếp tục ở nền, các lần gọi sau sẽ dùng được model khi đã sẵn sàng.
+   */
   async function ensureReady(): Promise<string | null> {
     if (!enabled) return 'disabled';
-    await init();
+    if (state.phase !== 'ready') {
+      const settled = await settlesWithin(init(), options.initWaitMs ?? options.timeoutMs);
+      if (!settled) return 'loading';
+    }
     return state.phase === 'ready' ? null : (state.reason ?? 'not_ready');
   }
 

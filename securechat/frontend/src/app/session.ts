@@ -35,6 +35,9 @@ export async function startSession(
   { api, analyzer }: StartSessionDeps,
 ): Promise<Session> {
   const user = { userId: tokens.userId, deviceId: tokens.deviceId };
+  // Nạp model AI ở nền ngay khi đăng nhập (khoảng 2 MB, có thể mất vài giây trên máy yếu), để lần gửi tin
+  // đầu tiên không phải chờ. Lỗi nạp được ghi vào trạng thái analyzer và hiện ở AiStatus.
+  void analyzer.init();
   const { storage, persistent } = await openStorage(user.userId);
   const crypto = createCryptoProvider();
 

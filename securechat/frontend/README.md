@@ -117,7 +117,7 @@ Mở trang `/bench` (không cần đăng nhập) trên thiết bị cấu hình 
 
 Chrome không cho trang web tự đọc CPU và RAM của Worker, nên phần này xem bằng Task Manager của trình duyệt (Shift+Esc) trong lúc đo. Khi manifest chưa có model tin nhắn thì các dòng tin nhắn và gửi tin luôn không ở trạng thái `ok`; lúc đó chỉ các dòng URL là số đo có giá trị.
 
-Giá trị p95 kém nhất trên thiết bị yếu được dùng để chốt thời gian chờ tối đa. Giá trị hiện tại `DEFAULT_AI_TIMEOUT_MS = 1500` chỉ là điểm xuất phát; giá trị cuối cùng được ghi vào `labels.yaml` ở mục `runtime.timeout_ms`.
+Giá trị p95 kém nhất trên thiết bị yếu được dùng để chốt thời gian chờ tối đa. Đo ngày 28/11/2026 với model tin nhắn `msg-29bd2d-f60d69`: trên máy thường (12 luồng), bật AI làm mỗi lần gửi chậm thêm p95 khoảng 1,5 ms; khi giả lập CPU chậm 6 lần và mạng Fast 4G trong DevTools, con số này là 52–58 ms (tối đa 62 ms), nạp model lần đầu mất 4,2 giây, không có tác vụ nào chặn luồng chính quá 50 ms. Thời gian chờ được chốt `DEFAULT_AI_TIMEOUT_MS = 500` (ghi ở `labels.yaml`, mục `runtime.timeout_ms`). Model được nạp ở nền ngay khi đăng nhập; tin gửi hoặc nhận trong lúc model chưa nạp xong không phải chờ, kết quả AI của tin đó là "không khả dụng" (không bao giờ là "an toàn"). Báo cáo đo gốc nằm ở `ml/reports/ai_bench_2026-11-28_*.json`.
 
 ## 6. Kiểm thử
 
