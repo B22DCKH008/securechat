@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "securechat-ml"
+version = "0.1.0"
+description = "SecureChat: message & URL risk models (train, evaluate, export for client-side inference)"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "scikit-learn>=1.4",
+  "scipy>=1.11",
+  "pyyaml>=6.0",
+  "joblib>=1.3",
+]
+
+[project.optional-dependencies]
+onnx = ["onnx", "onnxruntime", "skl2onnx"]
+dev = ["pytest"]
+
+[project.scripts]
+securechat-ml = "securechat_ml.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

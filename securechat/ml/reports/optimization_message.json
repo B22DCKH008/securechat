@@ -1,0 +1,46 @@
+{
+  "evaluated_on": "test",
+  "rows": [
+    {
+      "max_features": 5000,
+      "vocab": 5000,
+      "json_bytes": 270138,
+      "precision": 0.9036697247706422,
+      "recall": 0.9563106796116505,
+      "f1": 0.9292452830188679,
+      "pr_auc": 0.9611936627112384,
+      "py_ref_latency_ms_p50": 0.082
+    },
+    {
+      "max_features": 10000,
+      "vocab": 10000,
+      "json_bytes": 549163,
+      "precision": 0.8834080717488789,
+      "recall": 0.9563106796116505,
+      "f1": 0.9184149184149184,
+      "pr_auc": 0.9584630937389716,
+      "py_ref_latency_ms_p50": 0.114
+    },
+    {
+      "max_features": 20000,
+      "vocab": 20000,
+      "json_bytes": 1122771,
+      "precision": 0.8565217391304348,
+      "recall": 0.9563106796116505,
+      "f1": 0.9036697247706422,
+      "pr_auc": 0.9580576143886992,
+      "py_ref_latency_ms_p50": 0.123
+    },
+    {
+      "max_features": 50000,
+      "vocab": 37466,
+      "json_bytes": 2146780,
+      "precision": 0.8565217391304348,
+      "recall": 0.9563106796116505,
+      "f1": 0.9036697247706422,
+      "pr_auc": 0.9557237700149539,
+      "py_ref_latency_ms_p50": 0.1
+    }
+  ],
+  "note": "Tỉa vocab: chọn cấu hình nhỏ nhất vẫn đạt ngưỡng chất lượng. Kiểm parity lại sau khi chọn."
+}

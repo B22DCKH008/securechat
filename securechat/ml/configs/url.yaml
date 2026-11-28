@@ -1,0 +1,39 @@
+seed: 42
+
+files:
+  phiusiil: PhiUSIIL_Phishing_URL_Dataset.csv   # UCI id 967
+  phishvn: phishvn/phishvn.csv                    # đổi đúng tên file bạn tải từ Mendeley (xem README)
+
+phiusiil:
+  url_col: URL
+  label_col: label
+  legit_value: 1            # CHÚ Ý: 1 = hợp lệ, 0 = phishing (nhãn ngược trực giác)
+
+phishvn:                    # đã kiểm với PhishVN v3.1.0 (Mendeley bản 4): url, label=phishing|benign, tier, split. Loader tự dò cột, sai thì báo lỗi kèm danh sách cột
+  url_col: null             # null = tự dò (url, URL, full_url, ...)
+  label_col: null           # null = tự dò (label, is_phishing, class, ...)
+  tier_col: null            # null = tự dò (label_confidence, confidence_tier, tier, ...)
+  split_col: null           # null = tự dò (split, ...). Không có => chia theo domain (cảnh báo: không theo thời gian)
+  eval_tiers: [gold, silver]   # chỉ dùng tầng này cho val/test chéo miền
+  val_tiers: [gold, silver, bronze]              # null = dùng eval_tiers. Chỉ nới cho VALIDATION (vd [gold, silver, bronze]) khi val_cross quá ít mẫu phishing; test_cross luôn theo eval_tiers
+  train_tiers: [gold, silver]  # tầng được đưa vào train (thêm bronze nếu muốn, báo cáo riêng)
+
+use_phishvn_train: true
+
+split:
+  phiusiil_fractions: {train: 0.8, val_in: 0.1, test_in: 0.1}   # chia THEO DOMAIN
+
+features:
+  exclude: [has_www]        # feature chẩn đoán có thể "tố cáo" nhãn (artefact thu thập); bỏ khỏi model
+
+models:                     # thứ tự = độ đơn giản (hòa thì chọn model đơn giản hơn)
+  lr:  {C: 1.0, max_iter: 2000}
+  gbdt: {n_estimators: 100, max_depth: 4, learning_rate: 0.1, subsample: 0.8}   # (HistGradientBoosting không xuất ONNX được với skl2onnx 1.20 + numpy 2.x)
+  rf:  {n_estimators: 100, max_depth: 14, min_samples_leaf: 5}
+
+threshold:
+  max_fpr: 0.01             # chọn trên validation: recall lớn nhất với FPR <= 1%
+  target_recall: 0.90       # ngưỡng chất lượng tối thiểu (đặt TRƯỚC khi xem kết quả)
+
+bootstrap:
+  n: 500

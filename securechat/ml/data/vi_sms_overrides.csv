@@ -1,0 +1,9 @@
+message_id,label,ghi_chu
+COM_2620,scam,tin giả mạo VCB (tên miền vletcombank.com) nhưng nhãn gốc là 0
+COM_1368,spam,tặng tiền khuyến mại khi cập nhật thuê bao
+COM_644,scam,kêu gọi chuyển khoản ủng hộ
+COM_784,scam,cập nhật sinh trắc học để nhận quà qua liên kết
+COM_1117,benign,phản hồi đăng ký không thành công
+COM_1296,benign,thông báo gói đã kết thúc
+COM_569,benign,thông báo hủy gia hạn thành công
+COM_931,benign,tin nhắn không hợp lệ
