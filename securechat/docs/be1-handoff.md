@@ -67,7 +67,11 @@ Access log `path` now records a method-specific route template, e.g.
 requests. Raw identifiers, queries and bodies are omitted. Methodless routes
 use the safe fallback; future routes should retain method-specific patterns.
 
-## Open BE2 blocker: DLQ replay (KF5/KF6/KF11)
+## BE2 blocker: DLQ replay (KF5/KF6/KF11) — fixed 2026-11-21
+
+Resolved on branch `be2`; see [BE2 handoff](be2-handoff.md) and
+[verification-be2](verification-be2.md). The original description is kept below
+as the acceptance procedure that the new real-broker case follows.
 
 `internal/delivery/kafka_consumer.go` currently ignores `sendToDLQ` failure and
 still adds the record to the commit batch. A subsequent `CommitRecords` can

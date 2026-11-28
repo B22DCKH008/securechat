@@ -38,10 +38,33 @@ func NewGatewayConsumer(brokers []string, group string, startLatest, staticMembe
 		kgo.ConsumeTopics(topics...),
 		kgo.ConsumeResetOffset(reset),
 		kgo.DisableAutoCommit(),
+		// Rebalances wait until the polled batch is committed or rewound, so a
+		// revoked partition never loses the commit/seek decision (KF6, KF10).
+		kgo.BlockRebalanceOnPoll(),
 		kgo.FetchMaxWait(250 * time.Millisecond),
 	}
 	if staticMembership {
 		// Restarting with the same id avoids a full rebalance (KF10).
+		opts = append(opts, kgo.InstanceID(group))
+	}
+	return kgo.NewClient(opts...)
+}
+
+// NewRetryConsumer consumes the shared chat.retry topic with group
+// "<instance>.retry". It starts at the beginning for a new group: records owned
+// by other instances are skipped by header, and the topic retention is short.
+func NewRetryConsumer(brokers []string, group string, staticMembership bool, topic string) (*kgo.Client, error) {
+	opts := []kgo.Opt{
+		kgo.SeedBrokers(brokers...),
+		kgo.ClientID(group),
+		kgo.ConsumerGroup(group),
+		kgo.ConsumeTopics(topic),
+		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+		kgo.DisableAutoCommit(),
+		kgo.BlockRebalanceOnPoll(),
+		kgo.FetchMaxWait(250 * time.Millisecond),
+	}
+	if staticMembership {
 		opts = append(opts, kgo.InstanceID(group))
 	}
 	return kgo.NewClient(opts...)

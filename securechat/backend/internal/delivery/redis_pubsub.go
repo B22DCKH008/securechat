@@ -2,10 +2,10 @@ package delivery
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 // RedisSubscriber is the fallback / comparison transport behind
@@ -42,8 +42,22 @@ func (s *RedisSubscriber) Run(ctx context.Context) {
 	}
 }
 
-// ErrRedisPublisherNotImplemented: the relay side for Redis transport is not built yet.
+// RedisPublisher is the relay side of DELIVERY_TRANSPORT=redis (KF16, EXP13).
+// It implements outbox.Publisher: each record value (the unchanged event
+// envelope, ciphertext only) is PUBLISHed to a channel named after its topic.
 //
-// TODO(BE2, KF16): implement an outbox.Publisher that PUBLISHes envelopes to the
-// Redis channel named after the topic, so the relay can switch transport by flag.
-var ErrRedisPublisherNotImplemented = errors.New("redis publisher not implemented")
+// A successful PUBLISH only means Redis accepted it; subscribers that are
+// down or reconnecting miss the event for realtime and recover via
+// PostgreSQL sync. The outbox row is still marked published afterwards.
+type RedisPublisher struct{ rdb *redis.Client }
+
+func NewRedisPublisher(rdb *redis.Client) *RedisPublisher { return &RedisPublisher{rdb: rdb} }
+
+func (p *RedisPublisher) ProduceSync(ctx context.Context, records ...*kgo.Record) kgo.ProduceResults {
+	results := make(kgo.ProduceResults, 0, len(records))
+	for _, r := range records {
+		err := p.rdb.Publish(ctx, r.Topic, r.Value).Err()
+		results = append(results, kgo.ProduceResult{Record: r, Err: err})
+	}
+	return results
+}

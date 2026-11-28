@@ -6,6 +6,6 @@ scrape_configs:
     static_configs:
       - targets: ["backend-a:8080", "backend-b:8080"]
         labels: { app: securechat }
-  # TODO(BE2, KF9): add kafka-exporter for consumer lag
-  # - job_name: kafka-exporter
-  #   static_configs: [{ targets: ["kafka-exporter:9308"] }]
+  # Consumer lag (KF9) is exported by each backend as
+  # securechat_kafka_consumer_lag{group,topic} (kadm, committed offsets), so no
+  # separate kafka-exporter container is needed on this memory-limited setup.

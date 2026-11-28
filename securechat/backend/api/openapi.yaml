@@ -102,6 +102,70 @@ paths:
       responses:
         "200": { description: ok, content: { application/json: { schema: { $ref: "#/components/schemas/Conversation" } } } }
 
+  /v1/conversations/group:
+    post:
+      summary: Create a group (caller becomes owner). Pairwise fan-out, at most 32 members including the owner.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, memberUserIds]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 64, description: trimmed; 1-64 characters }
+                memberUserIds: { type: array, minItems: 1, maxItems: 31, items: { type: string, format: uuid }, description: duplicates and the caller are ignored }
+      responses:
+        "201": { description: created; seq 1 is a group_created system message, content: { application/json: { schema: { $ref: "#/components/schemas/Conversation" } } } }
+        "400": { description: invalid title or member count }
+        "404": { description: a member user does not exist }
+
+  /v1/conversations/{id}:
+    patch:
+      summary: Rename a group (owner only); emits a title_changed system message
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false, required: [title], properties: { title: { type: string, minLength: 1, maxLength: 64 } } }
+      responses:
+        "204": { description: renamed }
+        "400": { description: invalid title or not a group }
+        "403": { description: not the owner }
+
+  /v1/conversations/{id}/members:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      summary: Current members. Clients encrypt one copy for every member except themselves.
+      responses:
+        "200": { description: ok, content: { application/json: { schema: { type: object, properties: { members: { type: array, items: { $ref: "#/components/schemas/Member" } } } } } } }
+        "403": { description: not a member }
+    post:
+      summary: Add members (owner only). Existing members are ignored; new members see messages from the members_added system message on.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: false, required: [userIds], properties: { userIds: { type: array, minItems: 1, items: { type: string, format: uuid } } } }
+      responses:
+        "200": { description: members after the change, content: { application/json: { schema: { type: object, properties: { members: { type: array, items: { $ref: "#/components/schemas/Member" } } } } } } }
+        "400": { description: would exceed 32 members, or not a group }
+        "403": { description: not the owner }
+        "404": { description: user does not exist }
+
+  /v1/conversations/{id}/members/{userId}:
+    delete:
+      summary: Owner removes a member, or a member removes itself to leave. If the owner leaves, the earliest remaining member becomes owner.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: userId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: removed; member_removed or member_left system message (also pushed to the removed user) }
+        "400": { description: not a group }
+        "403": { description: caller is not a member, or not the owner when removing someone else }
+        "404": { description: target is not a member }
+
   /v1/conversations/{id}/messages:
     parameters:
       - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -130,7 +194,8 @@ paths:
       responses:
         "201": { description: accepted (new), content: { application/json: { schema: { $ref: "#/components/schemas/Accepted" } } } }
         "200": { description: accepted (duplicate retry), content: { application/json: { schema: { $ref: "#/components/schemas/Accepted" } } } }
-        "409": { description: clientMessageId reused with changed conversation or payload }
+        "409": { description: "`idempotency_conflict`: clientMessageId reused with changed conversation or payload. `membership_changed`: group ciphertexts do not cover exactly the current members other than the sender; nothing was stored, refetch members and re-encrypt" }
+        "400": { description: "invalid input, `ciphertext` sent to a group or `ciphertexts` sent to a direct conversation" }
         "403": { description: not a member }
 
   /v1/messages/{id}/receipts:
@@ -183,6 +248,15 @@ paths:
                         receipts: { type: array, items: { $ref: "#/components/schemas/Receipt" } }
                         nextReceiptCursor: { type: integer, format: int64 }
                         hasMoreReceipts: { type: boolean }
+                  left:
+                    type: array
+                    description: Groups in the request cursors that the caller was removed from or left; drop them locally. A cursor for a conversation the caller never belonged to is still 403.
+                    items:
+                      type: object
+                      properties:
+                        conversationId: { type: string, format: uuid }
+                        leftSeq: { type: integer, format: int64 }
+                        leftAt: { type: string, format: date-time }
 
   /v1/keys/bundle:
     put:
@@ -253,16 +327,41 @@ components:
       properties:
         id: { type: string, format: uuid }
         kind: { type: string, enum: [direct, group] }
+        title: { type: string, description: groups only }
+        createdBy: { type: string, format: uuid, description: groups only }
         lastSeq: { type: integer }
+        joinedSeq: { type: integer, description: "groups: the caller sees messages with seq > joinedSeq (omitted when 0)" }
         members: { type: array, items: { type: string, format: uuid } }
         createdAt: { type: string, format: date-time }
+    Member:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        role: { type: string, enum: [owner, member] }
+        joinedSeq: { type: integer, format: int64 }
+        joinedAt: { type: string, format: date-time }
+    RecipientCiphertext:
+      type: object
+      additionalProperties: false
+      required: [recipientId, ciphertext]
+      properties:
+        recipientId: { type: string, format: uuid }
+        deviceId: { type: integer, minimum: 1, default: 1 }
+        ciphertext: { type: string, format: byte, description: pairwise Signal ciphertext for this recipient }
+        protocolMeta: { type: object, description: at most 1024 serialized bytes }
     SendRequest:
       type: object
       additionalProperties: false
-      required: [clientMessageId, ciphertext]
+      required: [clientMessageId]
+      description: Direct conversations send `ciphertext`; groups send `ciphertexts` (exactly one of them).
       properties:
-        clientMessageId: { type: string, maxLength: 64, description: "UUID generated by client; reuse on retry" }
-        ciphertext: { type: string, format: byte, description: "Base64 ciphertext; decoded bytes limited by WS_MAX_MESSAGE_BYTES (default 65536), shared by REST and WS. REST JSON body limit is 1 MiB." }
+        clientMessageId: { type: string, maxLength: 64, description: "UUID generated by client; reuse on retry. Prefix `sys:` is reserved." }
+        ciphertext: { type: string, format: byte, description: "Direct only. Base64 ciphertext; decoded bytes limited by WS_MAX_MESSAGE_BYTES (default 65536), shared by REST and WS. REST JSON body limit is 1 MiB." }
+        ciphertexts:
+          type: array
+          maxItems: 31
+          description: "Group only. One copy per current member except the sender. Sum of decoded ciphertexts plus copy protocolMeta bytes is limited by WS_MAX_MESSAGE_BYTES."
+          items: { $ref: "#/components/schemas/RecipientCiphertext" }
         protocolMeta: { type: object, description: "Signal message type, deviceId, registrationId…; at most 4096 serialized bytes" }
         clientCreatedAt: { type: string, format: date-time, description: reference only }
     Accepted:
@@ -278,11 +377,21 @@ components:
       type: object
       properties:
         messageId: { type: string, format: uuid }
+        kind: { type: string, enum: [message, system], description: system = server membership event, nothing to decrypt }
         clientMessageId: { type: string }
         conversationId: { type: string, format: uuid }
         seq: { type: integer }
-        senderId: { type: string, format: uuid }
-        ciphertext: { type: string, format: byte }
+        senderId: { type: string, format: uuid, description: for system messages, the acting user }
+        ciphertext: { type: string, format: byte, description: "group messages: the reader's own pairwise copy; empty for the sender's own group messages and for system messages" }
         protocolMeta: { type: object }
         clientCreatedAt: { type: string, format: date-time }
+        system: { $ref: "#/components/schemas/SystemEvent" }
         createdAt: { type: string, format: date-time }
+    SystemEvent:
+      type: object
+      properties:
+        type: { type: string, enum: [group_created, members_added, member_removed, member_left, title_changed] }
+        actorId: { type: string, format: uuid }
+        userIds: { type: array, items: { type: string, format: uuid } }
+        title: { type: string }
+        newOwnerId: { type: string, format: uuid }
