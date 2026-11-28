@@ -7,3 +7,5 @@
 *.md text eol=lf
 *.json text eol=lf
 *.ts text eol=lf
+# Tập test gán tay: giữ nguyên byte để mã SHA-256 trong ml/data/SOURCES.md luôn khớp
+ml/data/raw/messages_handlabeled.csv -text

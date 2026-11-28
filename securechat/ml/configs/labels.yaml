@@ -1,26 +1,25 @@
 # Label contract (AI3, AI15). Shared by ml/ and frontend/src/ai/contract.ts.
-# TODO(FE/AI 2): finalize definitions with examples + edge cases in week 1.
-version: 0
+# v1: tiếng Việt, 3 nhãn cho tin nhắn (phishing gộp vào scam). Đổi nhãn/ngưỡng => cập nhật CẢ contract.ts và file này, tăng modelVersion.
+version: 1
 
 message_model:
   labels:
     - id: benign
-      definition: "Normal conversation."
-    - id: phishing
-      definition: "Tries to obtain credentials, OTP, payment or personal data by impersonation."
-    - id: scam
-      definition: "Fraudulent offer / request for money (investment, prize, job, romance)."
+      definition: "Hội thoại bình thường (kể cả tin ngân hàng/nhà mạng thật, không yêu cầu hành động nguy hiểm)."
     - id: spam
-      definition: "Unsolicited bulk / promotional content."
-  threshold: null      # chosen on validation set (AI25), NOT on test set
-  languages: [vi, en]  # document real coverage in model_card.md (AI12)
+      definition: "Quảng cáo, khuyến mãi, tin hàng loạt không mời; không nhằm chiếm đoạt tiền/thông tin."
+    - id: scam
+      definition: "Lừa đảo, kể cả phishing: giả mạo để lấy OTP/mật khẩu/thông tin, yêu cầu chuyển tiền, đầu tư/việc nhẹ lương cao/trúng thưởng giả, giả công an/ngân hàng/shipper."
+  risky_labels: [spam, scam]   # cảnh báo khi P(risky) = 1 - P(benign) >= threshold
+  threshold: null              # chọn trên VALIDATION (AI25), ghi vào models/artifacts/message/threshold.json
+  languages: [vi]
 
 url_model:
   labels:
     - id: benign
-    - id: malicious   # phishing / malware / defacement – refine if dataset allows
-  threshold: null
+    - id: malicious
+  threshold: null              # chọn trên validation, ràng buộc FPR (xem configs/url.yaml)
 
 runtime:
-  target: onnxruntime-web
-  timeout_ms: null     # on timeout → status "unavailable", never "safe"
+  target: typescript-json+onnxruntime-web   # message: JSON + TS; url: LR JSON hoặc ONNX
+  timeout_ms: 500              # chốt 28/11/2026 theo /bench (giả lập máy yếu: p95 thêm 52–58 ms, tối đa 62 ms); quá hạn => status "timeout"/"unavailable", KHÔNG bao giờ "safe"

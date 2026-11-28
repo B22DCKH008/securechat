@@ -1,0 +1,24 @@
+# Dữ liệu thô và trung gian KHÔNG commit (ghi nguồn + giấy phép ở data/SOURCES.md)
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/messages_handlabeled.csv
+data/interim/*
+!data/interim/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/splits/*
+!data/splits/.gitkeep
+data/demo/*
+!data/demo/.gitkeep
+# model nhị phân lớn / demo
+models/artifacts/*
+!models/artifacts/.gitkeep
+models/demo_artifacts/
+reports/demo/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.venv/
+# kết quả train mới nhất, bị ghi đè mỗi lần train; bản lưu chính thức là message_metrics_run*.json
+reports/message_metrics.json

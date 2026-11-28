@@ -7,7 +7,7 @@
  *  - Labels must match ml/configs/labels.yaml.
  */
 
-export type MessageLabel = 'benign' | 'phishing' | 'scam' | 'spam';
+export type MessageLabel = 'benign' | 'scam' | 'spam'; // phishing merged into scam (labels.yaml v1)
 export type UrlLabel = 'benign' | 'malicious';
 
 export type AnalysisStatus = 'ok' | 'unavailable' | 'timeout' | 'error';
