@@ -1,0 +1,19 @@
+{
+  "schema": "securechat.models/1",
+  "generatedAt": "2026-11-27T17:23:22.583Z",
+  "demo": false,
+  "message": {
+    "file": "message_model.json",
+    "modelVersion": "msg-29bd2d-f60d69",
+    "bytes": 2189830
+  },
+  "url": {
+    "kind": "lr",
+    "file": "url_lr.json",
+    "specFile": "url_spec.json",
+    "modelVersion": "url-24b1a4-c1c13f",
+    "threshold": 0.9282060737322266,
+    "meetsBar": false,
+    "bytes": 1624
+  }
+}

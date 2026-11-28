@@ -1,0 +1,4 @@
+node_modules/
+dist/
+*.tsbuildinfo
+# public/models (model + manifest) và tests/fixtures/** ĐƯỢC commit để clone về là chạy được.

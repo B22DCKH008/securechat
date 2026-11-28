@@ -1,0 +1,9 @@
+node_modules
+dist
+public/models
+tests/fixtures
+package-lock.json
+
+# Hợp đồng chung với backend/ml: giữ nguyên từng byte, đừng để Prettier (hay format-on-save) sửa
+src/transport/protocol.ts
+src/ai/contract.ts
