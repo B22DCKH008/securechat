@@ -1,0 +1,61 @@
+{
+  "specVersion": 1,
+  "normalization": "same as message featurizer (strip diacritics, urltoken, bignum)",
+  "rules": [
+    {
+      "id": "scam_otp",
+      "label": "scam",
+      "pattern": "(cung cap|gui|cho|doc|chia se).{0,20}(ma otp|otp|ma xac thuc|mat khau)"
+    },
+    {
+      "id": "scam_acc_locked",
+      "label": "scam",
+      "pattern": "(tai khoan|the).{0,30}(bi khoa|bi tam khoa|bi han che|se bi khoa|bi dong bang)"
+    },
+    {
+      "id": "scam_urgent_money",
+      "label": "scam",
+      "pattern": "(chuyen khoan|nap tien).{0,20}(gap|ngay|khan cap)"
+    },
+    {
+      "id": "scam_police",
+      "label": "scam",
+      "pattern": "(cong an|toa an|vien kiem sat|co quan dieu tra).{0,40}(trieu tap|lenh|bat|xac minh|phong toa)"
+    },
+    {
+      "id": "scam_prize_link",
+      "label": "scam",
+      "pattern": "(trung thuong|nhan qua|qua tang).{0,40}(urltoken|bam vao|truy cap|nhan ngay)"
+    },
+    {
+      "id": "scam_easy_job",
+      "label": "scam",
+      "pattern": "(viec nhe|luong cao|ctv|cong tac vien).{0,40}(nhan|hoa hong|zalo|lien he|nap)"
+    },
+    {
+      "id": "scam_invest",
+      "label": "scam",
+      "pattern": "(dau tu|loi nhuan|cam ket).{0,30}(%|lai|gap doi|moi ngay)"
+    },
+    {
+      "id": "scam_bank_link",
+      "label": "scam",
+      "pattern": "(vietcombank|techcombank|vietinbank|bidv|mbbank|agribank|vpbank|tpbank|acb|sacombank|momo).{0,60}urltoken"
+    },
+    {
+      "id": "spam_promo",
+      "label": "spam",
+      "pattern": "(khuyen mai|giam gia|uu dai|sale).{0,40}([0-9]+%|toi da|hom nay|duy nhat)"
+    },
+    {
+      "id": "spam_operator_tag",
+      "label": "spam",
+      "pattern": "[\\[(](qc|tb)"
+    },
+    {
+      "id": "spam_unsub",
+      "label": "spam",
+      "pattern": "soan +(tc|huy|stop)"
+    }
+  ]
+}

@@ -14,24 +14,24 @@ Ngoài phạm vi: tin nhắn không phải tiếng Việt, ảnh và mã QR, t�
 
 **Nhãn.** `benign` là hội thoại bình thường, kể cả tin ngân hàng hoặc nhà mạng thật không yêu cầu hành động nguy hiểm. `spam` là quảng cáo, khuyến mại, tin hàng loạt không mời, không nhằm chiếm đoạt tiền hoặc thông tin. `scam` là lừa đảo, kể cả phishing (giả mạo để lấy OTP, mật khẩu, yêu cầu chuyển tiền, đầu tư hoặc việc nhẹ lương cao giả, trúng thưởng giả, giả công an hoặc ngân hàng). Phishing được gộp vào `scam`. Định nghĩa đầy đủ ở `configs/labels.yaml`.
 
-**Kiến trúc.** Chuẩn hóa văn bản (chữ thường, bỏ dấu và đổi `đ` thành `d`, thay URL bằng token `urltoken` và số dài bằng token `bignum`), TF-IDF trên n-gram ký tự 2 đến 5 (có đệm khoảng trắng) kết hợp n-gram từ 1 đến 2, `sublinear_tf`, `min_df=2`, tối đa 50.000 đặc trưng, rồi hồi quy logistic đa lớp (`C=4`, `class_weight=balanced`). Điểm rủi ro là 1 trừ xác suất `benign`; cảnh báo khi điểm này không thấp hơn ngưỡng. Model được xuất thành JSON và TypeScript tự tính lại TF-IDF và hồi quy, nên không cần runtime ONNX cho model này. Bỏ dấu giúp model chịu được tin không dấu và tin viết tắt, đổi lại mất một phần thông tin do dấu mang.
+**Kiến trúc.** Chuẩn hóa văn bản (chữ thường, bỏ dấu và đổi `đ` thành `d`, thay URL bằng token `urltoken` và số dài bằng token `bignum`), TF-IDF trên n-gram ký tự 2 đến 5 (có đệm khoảng trắng) kết hợp n-gram từ 1 đến 2, `sublinear_tf`, `min_df=2`, tối đa 5.000 đặc trưng (đã tỉa từ 50.000 theo thử nghiệm tối ưu từ vựng ở `reports/optimization_message.json`), rồi hồi quy logistic đa lớp (`C=4`, `class_weight=balanced`). Điểm rủi ro là 1 trừ xác suất `benign`; cảnh báo khi điểm này không thấp hơn ngưỡng. Model được xuất thành JSON và TypeScript tự tính lại TF-IDF và hồi quy, nên không cần runtime ONNX cho model này. Bỏ dấu giúp model chịu được tin không dấu và tin viết tắt, đổi lại mất một phần thông tin do dấu mang.
 
-**Dữ liệu huấn luyện.** Nguồn thật là bộ SMS tiếng Việt công khai (`data/SOURCES.md`, mục 4): 2.991 tin, còn 2.577 tin sau khi loại 24 tin tiếng Anh, 388 tin trùng và 2 tin có nhãn mâu thuẫn, gồm 1.099 `spam`, 767 `benign`, 711 `scam`. Bộ gốc chỉ có hai nhãn (0 và 1); ba nhãn của dự án được suy ra bằng luật (`src/securechat_ml/data/vi_sms.py`), có tệp sửa tay (`data/vi_sms_overrides.csv`, 8 dòng); 14 tin có thông tin cá nhân đã được che trước khi lưu. Lần xem lại đầu tiên với 150 tin cho thấy luật sai ở 8 tin (ước tính khoảng 6%, mẫu nhỏ nên khoảng tin cậy rộng); sau đó đã xem lại thêm 50 tin và sửa luật theo các lỗi tìm được (chi tiết ở `README.md`, phần về bộ SMS). Phần dữ liệu chat tổng hợp (`data/SYNTHETIC_SPEC.md`): /.
+**Dữ liệu huấn luyện.** Nguồn thật là bộ SMS tiếng Việt công khai (`data/SOURCES.md`, mục 4): 2.991 tin, còn 2.577 tin sau khi loại 24 tin tiếng Anh, 388 tin trùng và 2 tin có nhãn mâu thuẫn, gồm 1.099 `spam`, 767 `benign`, 711 `scam`. Bộ gốc chỉ có hai nhãn (0 và 1); ba nhãn của dự án được suy ra bằng luật (`src/securechat_ml/data/vi_sms.py`), có tệp sửa tay (`data/vi_sms_overrides.csv`, 8 dòng); 14 tin có thông tin cá nhân đã được che trước khi lưu. Lần xem lại đầu tiên với 150 tin cho thấy luật sai ở 8 tin (ước tính khoảng 6%, mẫu nhỏ nên khoảng tin cậy rộng); sau đó đã xem lại thêm 50 tin và sửa luật theo các lỗi tìm được (chi tiết ở `README.md`, phần về bộ SMS). Phần dữ liệu chat tổng hợp (`data/SYNTHETIC_SPEC.md`): 1.100 tin (`messages_chat_synth.csv`: 860 `benign`, 120 `spam`, 120 `scam`; 15 tin trùng bị loại khi chuẩn bị tập). Tổng tập đầu vào `messages_train_pool.csv` gồm 3.677 tin; sau khi làm sạch và tách nhóm thu được `train` = 3.212 tin (1.492 `benign`, 1.026 `spam`, 694 `scam`) và `val` = 385 tin (100% nguồn `real`).
 
-**Dữ liệu đánh giá.** Tập test do người thực hiện tự viết và tự gán nhãn (`messages_handlabeled.csv`), không sinh bằng AI, không sao chép từ bộ SMS; quy cách ở `data/LABELING_GUIDE.md`. Trạng thái: chưa viết. Tập validation lấy từ tin thật của bộ SMS, tách theo nhóm tin gần giống nhau. Tin tổng hợp không bao giờ vào test.
+**Dữ liệu đánh giá.** Tập test do người thực hiện tự viết và tự gán nhãn (`messages_handlabeled.csv`), không sinh bằng AI, không sao chép từ bộ SMS; quy cách ở `data/LABELING_GUIDE.md`. Trạng thái: đã khóa (357 tin: 151 `benign`, 106 `spam`, 100 `scam`; trong đó `test_hard` gồm 210 tin: 98 `benign`, 49 `spam`, 63 `scam`). Tập validation lấy từ tin thật của bộ SMS, tách theo nhóm tin gần giống nhau. Tin tổng hợp không bao giờ vào test.
 
 **Tiêu chí đạt** (đặt trước khi xem kết quả): với nhóm rủi ro (`spam` và `scam` gộp, so với `benign`), precision không thấp hơn 0,90 và recall không thấp hơn 0,80 trên tập test gán tay. Ngưỡng cảnh báo chọn trên validation: recall lớn nhất với precision không thấp hơn 0,90.
 
-**Kết quả.** Chưa huấn luyện trên dữ liệu thật; các số dưới đây điền sau khi tập test được khóa.
+**Kết quả** (phiên bản `msg-4e3322-4842a0`, `vocab_size = 5.000`, so với baseline luật `rules_nac0` trên cùng tập `test`: P=1,000, R=0,121, F1=0,216, PR-AUC=0,628):
 
 | Chỉ số trên tập test gán tay | Giá trị |
 |---|---|
-| Precision, recall, F1 theo từng nhãn | / |
-| Precision và recall của nhóm rủi ro (`spam` và `scam`) tại ngưỡng đã chọn | / |
-| Ma trận nhầm lẫn | / |
-| Kết quả riêng trên tập khó (`test_hard`) | / |
-| Khoảng tin cậy 95% (bootstrap) | / |
-| Đạt hay không đạt tiêu chí | / |
+| Precision, recall, F1 theo từng nhãn | `benign`: P=0,935, R=0,861, F1=0,897 (n=151); `spam`: P=0,917, R=0,830, F1=0,871 (n=106); `scam`: P=0,770, R=0,940, F1=0,847 (n=100) |
+| Precision và recall của nhóm rủi ro (`spam` và `scam`) tại ngưỡng đã chọn | Ngưỡng 0,2637: P=0,904, R=0,956, F1=0,929, FPR=0,139, PR-AUC=0,961 |
+| Ma trận nhầm lẫn | Nhị phân (risky vs benign): TP=197, FP=21, FN=9, TN=130. Đa lớp [benign, spam, scam]: [130, 5, 16], [6, 88, 12], [3, 3, 94] |
+| Kết quả riêng trên tập khó (`test_hard`) | n=210 (risky=112): P=0,889 (0,830–0,947), R=0,929 (0,883–0,972), F1=0,908, FPR=0,133, PR-AUC=0,935 |
+| Khoảng tin cậy 95% (bootstrap) | Precision: 0,862 đến 0,942; Recall: 0,926 đến 0,981; F1: 0,902 đến 0,954 |
+| Đạt hay không đạt tiêu chí | Đạt (`met_on_evaluated_set = true`: P >= 0,90 và R >= 0,80) |
 
 ## 3. Model URL
 
@@ -77,17 +77,19 @@ Các số đo bằng trang `/bench` của frontend (`frontend/README.md`, mục 
 
 | Chỉ số | Model URL (LR, JSON) | Model tin nhắn |
 |---|---|---|
-| Kích thước | 1,6 KB | / |
-| Nạp lần đầu | 16,8 ms (trong đó 7,7 ms ở engine) | / |
+| Kích thước | 1,6 KB | 288,3 KB (`message_model.json`) + 1,8 KB (`message_rules.json`) |
+| Nạp lần đầu | 16,8 ms (trong đó 7,7 ms ở engine) | 17,20 ms trong `/bench` (lần mở trang đầu 33,5 ms, gồm fetch + parse + lần gọi đầu) |
 | Lần gọi đầu sau khi nạp | 0,1 ms | / |
-| Độ trễ p50, p95, p99 | 0,1 ms, 0,2 đến 0,3 ms, 0,5 ms | / |
+| Độ trễ p50, p95, p99 | 0,1 ms, 0,2 đến 0,3 ms, 0,5 ms | 0,100 ms, 0,200 ms, 0,700 ms (300 lượt warm, trung bình 0,099 ms) |
 | Một lần gửi tin (tin nhắn cùng 0, 1, 5 URL) | / | / |
 | Chênh lệch khi bật và tắt AI | / | / |
-| Bộ nhớ heap luồng chính | 3,7 MB lên 4,4 MB | / |
+| Bộ nhớ heap luồng chính | 3,7 MB lên 4,4 MB | 12,37 MB (JS Heap Chromium) |
 | CPU và RAM của Worker | / | / |
 | Tác vụ dài trên luồng chính (trên 50 ms) | 0 lần | / |
 
-**Thiết bị đã đo (25/11/2026):** Acer Nitro 5 AN515-57, 12 luồng CPU, RAM 16 GB, Chrome 158 trên Windows, chạy bản build bằng `npm run preview`, Web Worker có sẵn, trang không ở chế độ cô lập nguồn gốc. Đây là máy cấu hình khá, chưa phải thiết bị yếu. Chưa đo trên thiết bị yếu hoặc điện thoại.
+**Thiết bị đã đo (27/11/2026, model tin nhắn):** Windows 11, Chrome 158, chạy trang `/bench` của frontend (chi tiết ở `reports/performance.md`).
+
+**Thiết bị đã đo (25/11/2026, model URL):** Acer Nitro 5 AN515-57, 12 luồng CPU, RAM 16 GB, Chrome 158 trên Windows, chạy bản build bằng `npm run preview`, Web Worker có sẵn, trang không ở chế độ cô lập nguồn gốc. Đây là máy cấu hình khá, chưa phải thiết bị yếu. Chưa đo trên thiết bị yếu hoặc điện thoại.
 
 **Độ chính xác.** Khi trang không cô lập nguồn gốc, trình duyệt làm tròn đồng hồ đo đến 0,1 ms, nên với model URL chỉ nên đọc kết quả là "dưới 1 ms". Phép đo này chỉ cho thấy model URL không phải nút cổ chai; thời gian chờ tối đa sẽ chốt theo p95 của model tin nhắn trên thiết bị yếu.
 
@@ -101,6 +103,6 @@ Timeout hiện đặt tạm là 1500 ms và chỉ được chốt sau khi có s�
 
 - Mã nguồn: `ml/`, Python từ 3.10 trở lên. File model `joblib` cần nạp bằng đúng phiên bản scikit-learn lúc huấn luyện (`requirements.txt` chỉ ghi cận dưới). Model ONNX xuất bằng skl2onnx 1.20; lý do không dùng `HistGradientBoosting` ghi trong `configs/url.yaml`.
 - Hạt giống: 42 (`configs/*.yaml`).
-- Phiên bản model URL đang dùng: `url-24b1a4-c1c13f`.
-- Đối chiếu Python và TypeScript: LR URL lệch tối đa 9,3e-8 về xác suất và trùng quyết định 100% trên 512 ca (`reports/parity_python.json`); phía TypeScript có test đối chiếu bằng fixtures trong `frontend/tests/ai`.
-- Dữ liệu đầu vào và checksum: `data/SOURCES.md`, mục 2. Checksum của tập test gán tay ghi vào đó khi khóa tập: /.
+- Phiên bản model đang dùng: tin nhắn `msg-4e3322-4842a0` (`max_features=5000`, ngưỡng 0,2637); URL `url-24b1a4-c1c13f`.
+- Đối chiếu Python và TypeScript: model tin nhắn lệch tối đa 1,98e-08 trên 371 ca ở Python (`reports/parity_python.json`) và 1,37e-8 trên 14 fixture ở TypeScript (`frontend/tests/ai_message_parity.test.ts`, trùng 100% `normalize`, `analyze` và quyết định); LR URL lệch tối đa 9,3e-8 trên 512 ca.
+- Dữ liệu đầu vào và checksum: `data/SOURCES.md`, mục 2. Checksum SHA-256 của tập test gán tay `messages_handlabeled.csv`: `24391689777900b17e0d6ae5ae17e8a666337205b15f6dd964d69cd188bd2e51`.
