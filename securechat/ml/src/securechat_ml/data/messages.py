@@ -3,7 +3,8 @@
 Quy tắc chống leakage (AI7):
   * Tin gần giống nhau (cosine >= near_dup_cosine) hoặc cùng cột `group` => cùng nhóm => luôn nằm CÙNG một tập.
   * Tin trong train bị loại nếu gần giống một tin trong TEST gán tay.
-  * Dữ liệu `synthetic` không bao giờ vào validation khi đủ tin `real`; không bao giờ vào test.
+  * Dữ liệu `synthetic` không bao giờ vào test. Chỉ vào validation khi thiếu tin `real`, hoặc khi cấu hình
+    `split.val_synthetic_fraction` > 0 (khi đó chọn theo NHÓM, validation = tin real + một phần nhóm tổng hợp).
 """
 from __future__ import annotations
 
@@ -143,6 +144,32 @@ def drop_near_dups_of(pool: pd.DataFrame, ref: pd.DataFrame, near_cos: float) ->
     return pool[~mask].reset_index(drop=True), int(mask.sum())
 
 
+def _add_synthetic_to_validation(pool: pd.DataFrame, val: pd.DataFrame, cfg: dict, seed: int, manifest: dict) -> pd.DataFrame:
+    """Thêm một phần NHÓM tin tổng hợp vào validation (khi `split.val_synthetic_fraction` > 0).
+
+    Lý do: tin thật hiện chỉ là SMS, nên validation toàn SMS không cho thấy lỗi trên tin chat (lần 1: FPR 25% trên
+    validation nhưng 55% trên test chat). Mỗi nhóm vẫn nằm trọn trong MỘT tập, nên train và val không chia sẻ nhóm.
+    Phần tổng hợp của validation lạc quan hơn chat thật (cùng nguồn sinh với train), chỉ dùng để chọn ngưỡng.
+    """
+    vsf = float(cfg["split"].get("val_synthetic_fraction", 0.0) or 0.0)
+    if vsf <= 0:
+        return val
+    if not 0 < vsf < 1:
+        raise ValueError(f"split.val_synthetic_fraction phải nằm trong (0, 1), nhận {vsf}")
+    syn = pool[(pool["source"] == "synthetic") & ~pool["group_id"].isin(set(val["group_id"]))]
+    if syn["group_id"].nunique() < 2:
+        manifest["warnings"].append("val_synthetic_fraction > 0 nhưng có dưới 2 nhóm tin tổng hợp: validation vẫn chỉ gồm tin real.")
+        return val
+    sp = group_split(syn, "group_id", "label", {"train": 1 - vsf, "val": vsf}, seed)
+    manifest["validation_source"] = "real+synthetic"
+    manifest["val_synthetic_fraction"] = vsf
+    manifest["val_synthetic_rows"] = len(sp["val"])
+    manifest["warnings"].append(
+        "Validation gồm cả tin chat tổng hợp: phần này lạc quan hơn chat thật, chỉ dùng để chọn ngưỡng. Số đo cuối cùng vẫn là test gán tay."
+    )
+    return pd.concat([val, sp["val"]], ignore_index=True)
+
+
 def build_message_splits(pool: pd.DataFrame, hand: pd.DataFrame | None, cfg: dict, seed: int, labels: list[str] | None = None) -> tuple[dict, dict]:
     labels = labels or ["benign", "spam", "scam"]
     manifest: dict = {"warnings": []}
@@ -169,6 +196,7 @@ def build_message_splits(pool: pd.DataFrame, hand: pd.DataFrame | None, cfg: dic
         rp = group_split(real, "group_id", "label", {"train": 1 - vf, "val": vf}, seed)
         val = rp["val"]
         manifest["validation_source"] = "real"
+        val = _add_synthetic_to_validation(pool, val, cfg, seed, manifest)
     else:
         rp = group_split(pool, "group_id", "label", {"train": 1 - vf, "val": vf}, seed)
         val = rp["val"]

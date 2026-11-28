@@ -96,14 +96,24 @@ def cmd_train_message(a, paths):
     _p({k: r[k] for k in ("modelVersion", "threshold", "vocab_size", "evaluated_on", "quality_bar", "warnings")})
     ev = "test" if "test" in r["model"] else "val"
     _p({"model_risky_vs_benign": r["model"][ev]["risky_vs_benign"], "rules_nac0": r["rules_baseline_nac0"].get(ev, {}).get("risky_vs_benign")})
+    # các tập còn lại: val (cả validation), val_<nguồn>, test_hard, test bỏ tin cần ngữ cảnh người gửi
+    others = {k: {m: v["risky_vs_benign"][m] for m in ("n", "precision", "recall", "fpr")} for k, v in r["model"].items() if k != ev}
+    if others:
+        _p({"cac_tap_khac": others})
+
+
+def cmd_eval_message(a, paths):
+    from securechat_ml.models.message.train import evaluate_saved
+
+    _p(evaluate_saved(paths))
 
 
 def cmd_train_url(a, paths):
     from securechat_ml.models.url.train import train_url
 
     r = train_url(paths)
-    _p({"modelVersion": r["modelVersion"], "validation_set": r["validation_set"], "primary_test": r["primary_test"], "selected_model": r["selected_model"],
-        "per_model": {m: {"meets_bar": v["meets_bar_on_primary_test"], "primary": {k: v["sets"][r["primary_test"]][k] for k in ("precision", "recall", "fpr", "pr_auc")}} for m, v in r["models"].items()}})
+    _p({"modelVersion": r["modelVersion"], "validation_set": r["validation_set"], "primary_test": r["primary_test"], "selected_model": r["selected_model"], "validation_selected_model": r["validation_selected_model"],
+        "per_model": {m: {"meets_bar_val": v["meets_bar_on_validation"], "meets_bar_test": v["meets_bar_on_primary_test"], "primary": {k: v["sets"][r["primary_test"]][k] for k in ("precision", "recall", "fpr", "pr_auc")}} for m, v in r["models"].items()}})
 
 
 def cmd_sweep_message(a, paths):
@@ -164,7 +174,7 @@ def main(argv=None):
     ap.add_argument("--root", default=str(ML_ROOT))
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name, fn in [("demo-data", cmd_demo_data), ("prepare-messages", cmd_prepare_messages), ("prepare-urls", cmd_prepare_urls),
-                     ("train-message", cmd_train_message), ("train-url", cmd_train_url), ("sweep-message", cmd_sweep_message),
+                     ("train-message", cmd_train_message), ("eval-message", cmd_eval_message), ("train-url", cmd_train_url), ("sweep-message", cmd_sweep_message),
                      ("export-message", cmd_export_message), ("export-url", cmd_export_url), ("parity", cmd_parity),
                      ("demo-all", cmd_demo_all), ("demo-clean", cmd_demo_clean)]:
         sub.add_parser(name).set_defaults(fn=fn)
